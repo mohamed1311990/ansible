@@ -1,0 +1,15 @@
+#this playbook copy test1 file from src to dest and both dirs are in remote hosts
+-
+    name: play 1
+    hosts: mygroup 
+    become_user: root
+    tasks:
+        - name: copy_file 
+          copy:
+              src: /hoda/test1   #soource
+              dest: /hoda2       #destination
+              remote_src: yes
+              owner: root
+              group: root
+              mode: '0644'
+root@fa207b06938f:/my_ansibl

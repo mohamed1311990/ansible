@@ -1,0 +1,14 @@
+#install and run web server on debian nodes
+-
+    name: play 2
+    hosts: webserver 
+    tasks:
+        - name: install httpd service
+          apt:
+              name: apache2
+              state: present
+        - name: start web server
+          service:
+              name: apache2
+              state: started
+
