@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ansible Host Groups, Nested Groups & Group Variables</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f5f0;
+    color: #1a1a18;
+    padding: 2rem 1rem;
+    line-height: 1.6;
+  }
+  .page { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: #6b6b65; margin-bottom: 1.75rem; }
+
+  .top-tabs { display: flex; gap: 0; border-bottom: 0.5px solid #ddddd5; margin-bottom: 1.25rem; overflow-x: auto; }
+  .ttab {
+    padding: 9px 18px; font-size: 13px; font-weight: 500; cursor: pointer;
+    color: #6b6b65; border-bottom: 2px solid transparent; white-space: nowrap;
+    transition: all .15s; user-select: none; margin-bottom: -0.5px;
+    background: none; border-top: none; border-left: none; border-right: none;
+    font-family: inherit;
+  }
+  .ttab.active { color: #534AB7; border-bottom-color: #534AB7; }
+  .ttab:hover:not(.active) { color: #3a3a38; }
+
+  .pane { display: none; }
+  .pane.visible { display: block; }
+
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+    gap: 12px; margin-bottom: 14px;
+  }
+  .panel {
+    border: 0.5px solid #ddddd5; border-radius: 12px;
+    overflow: hidden; background: #fff;
+  }
+  .panel-head {
+    padding: 10px 14px; border-bottom: 0.5px solid #ddddd5;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .panel-title { font-size: 13px; font-weight: 500; color: #1a1a18; flex: 1; }
+
+  .badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+  .bp { background: #EEEDFE; color: #3C3489; }
+  .bt { background: #E1F5EE; color: #085041; }
+  .bc { background: #FAECE7; color: #712B13; }
+  .ba { background: #FAEEDA; color: #633806; }
+
+  .code-area {
+    padding: 12px 14px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px; line-height: 1.9; color: #1a1a18;
+    background: #f5f5f0; white-space: pre; overflow-x: auto;
+  }
+  .c  { color: #9a9a92; font-style: italic; }
+  .s  { color: #854F0B; font-weight: 600; }
+  .h  { color: #185FA5; font-weight: 600; }
+  .k  { color: #3C3489; }
+  .v  { color: #0F6E56; }
+  .st { color: #993C1D; font-weight: 600; }
+
+  .ann-list { padding: 10px 14px; display: flex; flex-direction: column; gap: 7px; }
+  .ann { display: flex; gap: 9px; align-items: flex-start; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .dp { background: #534AB7; }
+  .dt { background: #1D9E75; }
+  .dc { background: #D85A30; }
+  .da { background: #BA7517; }
+  .ann-text { font-size: 12px; color: #1a1a18; line-height: 1.6; }
+  .ann-text code {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+    background: #f0f0ea; padding: 1px 5px; border-radius: 4px; color: #1a1a18;
+  }
+
+  .tip {
+    font-size: 12px; color: #555550; margin-top: 10px; padding: 7px 11px;
+    background: #f0f0ea; border-radius: 0 6px 6px 0;
+    border-left: 2px solid #1D9E75; line-height: 1.55;
+  }
+  .tip.warn { border-left-color: #E24B4A; }
+
+  .concept-grid { display: flex; flex-direction: column; gap: 10px; }
+  .concept { border: 0.5px solid #ddddd5; border-radius: 12px; overflow: hidden; background: #fff; }
+  .concept-head {
+    padding: 11px 15px; display: flex; align-items: center; gap: 10px;
+    cursor: pointer; user-select: none; transition: background .15s;
+  }
+  .concept-head:hover { background: #f5f5f0; }
+  .concept-title { font-size: 13px; font-weight: 500; color: #1a1a18; flex: 1; }
+  .concept-arrow { font-size: 12px; color: #aaa; transition: transform .2s; }
+  .concept.open .concept-arrow { transform: rotate(180deg); }
+  .concept-body { display: none; border-top: 0.5px solid #ddddd5; }
+  .concept.open .concept-body { display: block; }
+  .cb-inner { padding: 12px 15px; }
+  .cb-desc { font-size: 13px; color: #1a1a18; line-height: 1.7; margin-bottom: 10px; }
+  .cb-desc code {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+    background: #f0f0ea; padding: 1px 5px; border-radius: 4px;
+  }
+
+  .var-flow { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .vf-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .vf-badge {
+    font-size: 11px; padding: 3px 12px; border-radius: 20px; font-weight: 500;
+    min-width: 150px; text-align: center;
+  }
+  .vf-arrow { color: #aaa; font-size: 13px; }
+  .vf-note { font-size: 11px; color: #6b6b65; }
+
+  footer { margin-top: 2.5rem; font-size: 12px; color: #aaa; text-align: center; }
+
+  @media (max-width: 640px) {
+    .split { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Ansible host groups, nested groups &amp; group variables</h1>
+  <p class="subtitle">How inventory groups work, how to nest them, how group_vars/ is structured, and how variables inherit through the hierarchy.</p>
+
+  <div class="top-tabs">
+    <button class="ttab active" onclick="sw(0,this)">Group anatomy</button>
+    <button class="ttab" onclick="sw(1,this)">Nested groups</button>
+    <button class="ttab" onclick="sw(2,this)">group_vars/</button>
+    <button class="ttab" onclick="sw(3,this)">Variable inheritance</button>
+  </div>
+
+  <!-- PANE 0: Group anatomy -->
+  <div class="pane visible" id="p0">
+    <div class="split">
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Flat group inventory</span><span class="badge bp">hosts.yml</span></div>
+        <div class="code-area"><span class="c">---</span>
+<span class="st">all:</span>                    <span class="c"># implicit root group</span>
+
+  <span class="st">hosts:</span>               <span class="c"># ungrouped hosts</span>
+    <span class="h">bastion:</span>
+      <span class="k">ansible_host</span>: <span class="v">10.0.0.1</span>
+
+  <span class="st">children:</span>            <span class="c"># named groups live here</span>
+
+    <span class="st">webservers:</span>
+      <span class="st">hosts:</span>
+        <span class="h">web-01:</span>
+          <span class="k">ansible_host</span>: <span class="v">10.0.1.10</span>
+        <span class="h">web-02:</span>
+          <span class="k">ansible_host</span>: <span class="v">10.0.1.11</span>
+      <span class="st">vars:</span>              <span class="c"># group vars inline</span>
+        <span class="k">nginx_port</span>: <span class="v">80</span>
+        <span class="k">ansible_user</span>: <span class="v">ubuntu</span>
+
+    <span class="st">databases:</span>
+      <span class="st">hosts:</span>
+        <span class="h">db-01:</span>
+          <span class="k">ansible_host</span>: <span class="v">10.0.2.10</span>
+        <span class="h">db-02:</span>
+          <span class="k">ansible_host</span>: <span class="v">10.0.2.11</span>
+      <span class="st">vars:</span>
+        <span class="k">pg_version</span>: <span class="v">"16"</span>
+        <span class="k">ansible_user</span>: <span class="v">ubuntu</span></div>
+        <div class="ann-list">
+          <div class="ann"><div class="dot dp"></div><div class="ann-text"><code>all:</code> is always the root — implicit, always exists</div></div>
+          <div class="ann"><div class="dot dp"></div><div class="ann-text"><code>bastion</code> under <code>all.hosts</code> lands in the <code>ungrouped</code> group automatically</div></div>
+          <div class="ann"><div class="dot dt"></div><div class="ann-text"><code>vars:</code> inside a group applies to every host in that group</div></div>
+          <div class="ann"><div class="dot dt"></div><div class="ann-text">Host-level vars override group vars for that host only</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">What Ansible sees</span><span class="badge bt">--graph output</span></div>
+        <div class="code-area"><span class="c"># ansible-inventory --graph</span>
+
+<span class="v">@all:</span>
+  <span class="v">|--@ungrouped:</span>
+  <span class="v">|  |--bastion</span>         <span class="c"># no named group</span>
+  <span class="v">|--@webservers:</span>
+  <span class="v">|  |--web-01</span>
+  <span class="v">|  |--web-02</span>
+  <span class="v">|--@databases:</span>
+  <span class="v">|  |--db-01</span>
+  <span class="v">|  |--db-02</span>
+
+
+<span class="c"># Check a specific host's resolved vars:</span>
+<span class="c"># ansible-inventory --host web-01</span>
+{
+  <span class="k">"ansible_host"</span>: <span class="v">"10.0.1.10"</span>,
+  <span class="k">"ansible_user"</span>: <span class="v">"ubuntu"</span>,  <span class="c">← from group</span>
+  <span class="k">"nginx_port"</span>:   <span class="v">80</span>          <span class="c">← from group</span>
+}
+
+
+<span class="c"># Run against a group:</span>
+ansible webservers -m ping
+ansible databases -m shell -a "uptime"</div>
+        <div class="ann-list">
+          <div class="ann"><div class="dot dp"></div><div class="ann-text"><code>ansible-inventory --graph</code> is your primary debugging tool for inventory structure</div></div>
+          <div class="ann"><div class="dot dp"></div><div class="ann-text"><code>ansible-inventory --host web-01</code> shows all resolved vars for one host</div></div>
+          <div class="ann"><div class="dot dt"></div><div class="ann-text">Target any group in a playbook with <code>hosts: webservers</code> or on CLI with <code>-l webservers</code></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 1: Nested groups -->
+  <div class="pane" id="p1">
+    <div class="split">
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Nested group hierarchy</span><span class="badge bp">hosts.yml</span></div>
+        <div class="code-area"><span class="c">---</span>
+<span class="st">all:</span>
+  <span class="st">children:</span>
+
+    <span class="c"># --- leaf groups (actual hosts) ---</span>
+    <span class="st">web_eu:</span>
+      <span class="st">hosts:</span>
+        <span class="h">web-lon-01:</span>
+          <span class="k">ansible_host</span>: <span class="v">10.1.1.10</span>
+        <span class="h">web-lon-02:</span>
+          <span class="k">ansible_host</span>: <span class="v">10.1.1.11</span>
+      <span class="st">vars:</span>
+        <span class="k">aws_region</span>: <span class="v">eu-west-2</span>
+        <span class="k">datacenter</span>: <span class="v">lon</span>
+
+    <span class="st">web_us:</span>
+      <span class="st">hosts:</span>
+        <span class="h">web-nyc-01:</span>
+          <span class="k">ansible_host</span>: <span class="v">10.2.1.10</span>
+        <span class="h">web-nyc-02:</span>
+          <span class="k">ansible_host</span>: <span class="v">10.2.1.11</span>
+      <span class="st">vars:</span>
+        <span class="k">aws_region</span>: <span class="v">us-east-1</span>
+        <span class="k">datacenter</span>: <span class="v">nyc</span>
+
+    <span class="c"># --- parent group (no direct hosts) ---</span>
+    <span class="st">webservers:</span>
+      <span class="st">vars:</span>
+        <span class="k">nginx_port</span>: <span class="v">80</span>      <span class="c"># all web hosts get this</span>
+        <span class="k">ansible_user</span>: <span class="v">ubuntu</span>
+      <span class="st">children:</span>
+        <span class="st">web_eu:</span>             <span class="c"># reference by name</span>
+        <span class="st">web_us:</span>
+
+    <span class="c"># --- environment group ---</span>
+    <span class="st">production:</span>
+      <span class="st">vars:</span>
+        <span class="k">env</span>: <span class="v">production</span>
+        <span class="k">app_log_level</span>: <span class="v">WARNING</span>
+      <span class="st">children:</span>
+        <span class="st">webservers:</span>
+        <span class="st">databases:</span></div>
+        <div class="ann-list">
+          <div class="ann"><div class="dot dp"></div><div class="ann-text">Parent groups contain <code>children:</code> which reference leaf group names — no hosts directly</div></div>
+          <div class="ann"><div class="dot dt"></div><div class="ann-text">Vars on a parent group flow down to all children — <code>nginx_port: 80</code> reaches every web host regardless of region</div></div>
+          <div class="ann"><div class="dot dc"></div><div class="ann-text">A host can belong to multiple groups simultaneously — use this for cross-cutting concerns (role + region + env)</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Resulting tree &amp; patterns</span><span class="badge bt">--graph output</span></div>
+        <div class="code-area"><span class="c"># ansible-inventory --graph</span>
+
+<span class="v">@all:</span>
+  <span class="v">|--@production:</span>
+  <span class="v">|  |--@webservers:</span>
+  <span class="v">|  |  |--@web_eu:</span>
+  <span class="v">|  |  |  |--web-lon-01</span>
+  <span class="v">|  |  |  |--web-lon-02</span>
+  <span class="v">|  |  |--@web_us:</span>
+  <span class="v">|  |  |  |--web-nyc-01</span>
+  <span class="v">|  |  |  |--web-nyc-02</span>
+  <span class="v">|  |--@databases:</span>
+  <span class="v">|  |  |--db-01</span>
+  <span class="v">|  |  |--db-02</span>
+
+
+<span class="c"># Targeting patterns:</span>
+
+<span class="c"># All web hosts everywhere:</span>
+hosts: webservers
+
+<span class="c"># Only EU web hosts:</span>
+hosts: web_eu
+
+<span class="c"># All production hosts:</span>
+hosts: production
+
+<span class="c"># Intersection — web hosts in production:</span>
+hosts: webservers:&amp;production
+
+<span class="c"># All prod hosts EXCEPT databases:</span>
+hosts: production:!databases</div>
+        <div class="ann-list">
+          <div class="ann"><div class="dot dp"></div><div class="ann-text">The colon <code>:</code> is the group operator — <code>:&amp;</code> = intersection, <code>:!</code> = exclusion</div></div>
+          <div class="ann"><div class="dot dt"></div><div class="ann-text">Nesting means <code>web-lon-01</code> is defined once but reachable via <code>web_eu</code>, <code>webservers</code>, or <code>production</code></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 2: group_vars/ -->
+  <div class="pane" id="p2">
+    <div class="split">
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">group_vars/ directory layout</span><span class="badge bp">file structure</span></div>
+        <div class="code-area">inventories/
+  production/
+    hosts.yml
+
+    group_vars/
+      <span class="h">all/</span>              <span class="c"># applies to EVERY host</span>
+        main.yml
+        vault.yml       <span class="c"># encrypted secrets</span>
+
+      <span class="h">webservers/</span>       <span class="c"># applies to webservers group</span>
+        main.yml
+        vault.yml
+
+      <span class="h">databases/</span>        <span class="c"># applies to databases group</span>
+        main.yml
+        vault.yml
+
+      <span class="h">web_eu.yml</span>        <span class="c"># single file also valid</span>
+      <span class="h">web_us.yml</span>
+
+    host_vars/
+      <span class="h">web-lon-01/</span>       <span class="c"># per-host overrides</span>
+        main.yml
+      <span class="h">db-01.yml</span>         <span class="c"># single file also valid</span></div>
+        <div class="ann-list">
+          <div class="ann"><div class="dot dp"></div><div class="ann-text">Directory name or file name (without <code>.yml</code>) must exactly match the group name</div></div>
+          <div class="ann"><div class="dot dp"></div><div class="ann-text">Use a <strong>directory</strong> (e.g. <code>webservers/</code>) to split vars and vault into separate files — Ansible loads all <code>*.yml</code> inside</div></div>
+          <div class="ann"><div class="dot dt"></div><div class="ann-text">Use a <strong>single file</strong> (e.g. <code>web_eu.yml</code>) for simple groups with few variables</div></div>
+          <div class="ann"><div class="dot dc"></div><div class="ann-text"><code>host_vars/</code> follows the same pattern — directory or single file named after the hostname</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">What goes in each file</span><span class="badge bt">examples</span></div>
+        <div class="code-area"><span class="c"># group_vars/all/main.yml</span>
+<span class="c">---</span>
+<span class="k">env</span>: <span class="v">production</span>
+<span class="k">app_domain</span>: <span class="v">examsim.eu</span>
+<span class="k">docker_registry</span>: <span class="v">docker.io/mohamed1311990</span>
+<span class="k">ansible_user</span>: <span class="v">ubuntu</span>
+<span class="k">ansible_ssh_private_key_file</span>: <span class="v">~/.ssh/prod_key</span>
+
+<span class="c"># Reference vault vars — never put raw secrets here</span>
+<span class="k">db_password</span>: <span class="v">"{{ vault_db_password }}"</span>
+<span class="k">app_secret_key</span>: <span class="v">"{{ vault_app_secret_key }}"</span>
+
+
+<span class="c"># group_vars/all/vault.yml  (ansible-vault encrypted)</span>
+<span class="c">---</span>
+<span class="k">vault_db_password</span>: <span class="v">super_secret</span>
+<span class="k">vault_app_secret_key</span>: <span class="v">django_secret_here</span>
+
+
+<span class="c"># group_vars/webservers/main.yml</span>
+<span class="c">---</span>
+<span class="k">nginx_port</span>: <span class="v">80</span>
+<span class="k">nginx_worker_processes</span>: <span class="v">auto</span>
+<span class="k">app_port</span>: <span class="v">8000</span>
+
+
+<span class="c"># group_vars/databases/main.yml</span>
+<span class="c">---</span>
+<span class="k">pg_version</span>: <span class="v">"16"</span>
+<span class="k">pg_max_connections</span>: <span class="v">200</span>
+<span class="k">pg_shared_buffers</span>: <span class="v">256MB</span>
+<span class="k">pg_data_dir</span>: <span class="v">/var/lib/postgresql/16/main</span></div>
+        <div class="ann-list">
+          <div class="ann"><div class="dot dp"></div><div class="ann-text">Convention: prefix every vault variable with <code>vault_</code>, then alias it in <code>main.yml</code> — playbooks reference the alias and never need decryption to read code</div></div>
+          <div class="ann"><div class="dot dt"></div><div class="ann-text"><code>group_vars/all/</code> is the right home for connection settings that apply everywhere</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 3: Variable inheritance -->
+  <div class="pane" id="p3">
+    <div class="concept-grid" id="concepts"></div>
+  </div>
+
+  <footer>Generated from the Ansible expert roadmap · Chapter 2: Inventory Management</footer>
+</div>
+
+<script>
+function sw(i, btn) {
+  document.querySelectorAll('.ttab').forEach((t,j) => t.classList.toggle('active', i===j));
+  document.querySelectorAll('.pane').forEach((p,j) => p.classList.toggle('visible', i===j));
+}
+
+const concepts = [
+  {
+    title: 'Variable precedence — where each inventory source sits',
+    badgeClass: 'bp', badgeText: 'precedence order',
+    flow: [
+      { label: 'host_vars/ file',        bg: '#EEEDFE', tc: '#3C3489', note: 'highest — overrides everything for that specific host' },
+      { label: 'inventory host vars',    bg: '#EEEDFE', tc: '#3C3489', note: 'vars defined inline under a hostname in hosts.yml' },
+      { label: 'group_vars/<group>/',    bg: '#E1F5EE', tc: '#085041', note: 'child group vars — more specific groups win over parents' },
+      { label: 'group_vars/all/',        bg: '#FAEEDA', tc: '#633806', note: 'applies to all hosts — lowest group_vars precedence' },
+      { label: 'role defaults/',         bg: '#F1EFE8', tc: '#5F5E5A', note: 'lowest of all — overridden by any inventory var' },
+    ],
+    desc: 'When multiple sources define the same variable, Ansible follows a strict precedence chain. For inventory specifically: host vars always beat group vars, and child group vars beat parent group vars. The most specific source wins.',
+    code: `# Example: nginx_port defined in three places:
+# group_vars/all/main.yml        → nginx_port: 80
+# group_vars/webservers/main.yml → nginx_port: 8080
+# host_vars/web-01.yml           → nginx_port: 9000
+
+# web-01 gets: 9000  (host_vars wins)
+# web-02 gets: 8080  (webservers group_vars wins over all)
+# db-01  gets: 80    (only all/main.yml applies)
+
+# Verify what a host actually sees:
+ansible-inventory --host web-01 | grep nginx_port`,
+    tip: 'Run ansible-inventory --host &lt;hostname&gt; to see the fully resolved variable set for any host — the fastest way to debug precedence issues.'
+  },
+  {
+    title: 'Child group vars beat parent group vars',
+    badgeClass: 'bt', badgeText: 'inheritance rule',
+    flow: null,
+    desc: "When a host belongs to both a parent group (webservers) and a child group (web_eu), and both define the same variable, the CHILD group's value wins. This lets you set fleet-wide defaults on parent groups and override them per region or sub-group.",
+    code: `# group_vars/webservers/main.yml
+nginx_port: 80          # default for all web hosts
+aws_region: us-east-1   # default region
+
+# group_vars/web_eu/main.yml
+aws_region: eu-west-2   # overrides parent for EU hosts
+
+# Result for web-lon-01 (member of web_eu AND webservers):
+# nginx_port → 80          (from webservers, not overridden)
+# aws_region → eu-west-2   (web_eu child wins)
+
+# Result for web-nyc-01 (member of web_us AND webservers):
+# nginx_port → 80          (from webservers)
+# aws_region → us-east-1   (webservers parent, not overridden)`,
+    tip: 'Use parent groups for fleet-wide defaults. Use child groups for regional or environment-specific overrides. Never duplicate variables — define them once at the right level.'
+  },
+  {
+    title: 'A host can belong to multiple groups simultaneously',
+    badgeClass: 'bc', badgeText: 'multi-group membership',
+    flow: null,
+    desc: "Hosts don't belong to just one group. A single host is typically a member of several groups at once — one for its role (webserver), one for its environment (production), one for its region (eu). Each group contributes different variables independently with no duplication.",
+    code: `# web-lon-01 belongs to ALL of these simultaneously:
+# - all          (implicit)
+# - web_eu       (its leaf group)
+# - webservers   (parent of web_eu)
+# - production   (environment group)
+
+# Each group contributes different variables:
+# webservers  → nginx_port, app_port
+# web_eu      → aws_region, datacenter
+# production  → env, app_log_level, app_domain
+
+# web-lon-01 inherits ALL of them — no duplication needed
+
+# Verify:
+ansible-inventory --host web-lon-01`,
+    tip: "Keep group axes orthogonal — one for role (webserver/database), one for environment (prod/staging), one for region. Don't mix concerns into one group name like 'prod_webserver_eu'."
+  },
+  {
+    title: 'group_vars/all/ — the universal baseline',
+    badgeClass: 'ba', badgeText: 'all group',
+    flow: null,
+    desc: "group_vars/all/ applies to every host in the inventory without exception — including ungrouped hosts. Use it for baseline connection settings, universal app config, and vault variable aliases. Keep it lean — only truly universal config belongs here.",
+    code: `# group_vars/all/main.yml — universal baseline
+---
+# Connection settings for every host
+ansible_user: ubuntu
+ansible_ssh_private_key_file: ~/.ssh/prod_key
+ansible_python_interpreter: /usr/bin/python3
+
+# Universal app config
+app_domain: examsim.eu
+docker_registry: docker.io/mohamed1311990
+monitoring_enabled: true
+
+# Vault aliases — reference encrypted vars safely
+db_password: "{{ vault_db_password }}"
+app_secret: "{{ vault_app_secret }}"
+
+# group_vars/all/vault.yml — encrypted by ansible-vault
+vault_db_password: "real_secret_here"
+vault_app_secret: "real_secret_here"`,
+    tip: "Don't put role-specific vars (like nginx_port) in group_vars/all/ — they belong in the role's group_vars. all/ is for things every single host in the fleet genuinely needs."
+  }
+];
+
+const grid = document.getElementById('concepts');
+concepts.forEach((c, i) => {
+  const div = document.createElement('div');
+  div.className = 'concept';
+
+  let flowHtml = '';
+  if (c.flow) {
+    flowHtml = '<div class="var-flow">';
+    c.flow.forEach((f, fi) => {
+      flowHtml += `<div class="vf-row">
+        <span class="vf-badge" style="background:${f.bg};color:${f.tc}">${f.label}</span>
+        <span class="vf-arrow">${fi < c.flow.length - 1 ? '↓ lower' : '⊥ lowest'}</span>
+        <span class="vf-note">${f.note}</span>
+      </div>`;
+    });
+    flowHtml += '</div>';
+  }
+
+  div.innerHTML = `
+    <div class="concept-head" onclick="this.parentElement.classList.toggle('open')">
+      <span class="badge ${c.badgeClass}" style="font-size:10px;padding:2px 8px">${c.badgeText}</span>
+      <span class="concept-title">${c.title}</span>
+      <span class="concept-arrow">▾</span>
+    </div>
+    <div class="concept-body">
+      <div class="cb-inner">
+        <p class="cb-desc">${c.desc}</p>
+        ${flowHtml}
+        <div class="code-area" style="border-radius:8px;border:0.5px solid #ddddd5;margin-bottom:0">${c.code}</div>
+        <div class="tip">${c.tip}</div>
+      </div>
+    </div>`;
+  grid.appendChild(div);
+});
+</script>
+</body>
+</html>
