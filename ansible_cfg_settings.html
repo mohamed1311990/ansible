@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ansible ansible.cfg Settings Reference</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f5f0;
+    color: #1a1a18;
+    padding: 2rem 1rem;
+    line-height: 1.6;
+  }
+  .page { max-width: 780px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: #6b6b65; margin-bottom: 1.5rem; }
+
+  .wrap { font-family: inherit; }
+  .sec-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem; }
+  .stab {
+    padding: 5px 14px; border-radius: 20px; border: 0.5px solid #b0afa8;
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    background: #fff; color: #6b6b65;
+    font-family: inherit; transition: all .15s;
+  }
+  .stab.active { background: #534AB7; border-color: #534AB7; color: #fff; }
+
+  .settings-list { display: flex; flex-direction: column; gap: 8px; }
+  .setting {
+    border: 0.5px solid #ddddd5; border-radius: 12px;
+    overflow: hidden; background: #fff;
+  }
+  .shead {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 15px; cursor: pointer; user-select: none;
+    transition: background .15s;
+  }
+  .shead:hover { background: #f5f5f0; }
+  .skey { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; font-weight: 600; color: #3C3489; flex: 1; }
+  .sdefault { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; color: #8a8a82; margin-right: 4px; }
+  .simpact { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
+  .imp-high { background: #FCEBEB; color: #791F1F; }
+  .imp-med  { background: #FAEEDA; color: #633806; }
+  .imp-low  { background: #F1EFE8; color: #5F5E5A; }
+  .sarrow { font-size: 12px; color: #aaa; transition: transform .2s; }
+  .setting.open .sarrow { transform: rotate(180deg); }
+
+  .sbody { display: none; padding: 0 15px 13px; }
+  .setting.open .sbody { display: block; }
+  .sdesc { font-size: 13px; color: #2a2a28; line-height: 1.65; margin-bottom: 8px; }
+
+  .code-block {
+    background: #f5f5f0; border: 0.5px solid #ddddd5; border-radius: 8px;
+    padding: 9px 13px; font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px; color: #2a2a28; line-height: 1.75;
+    white-space: pre; overflow-x: auto;
+  }
+  .stip {
+    font-size: 12px; color: #555550; margin-top: 7px; padding: 6px 10px;
+    background: #f5f5f0; border-radius: 0 6px 6px 0;
+    border-left: 2px solid #1D9E75; line-height: 1.55;
+  }
+  .stip.warn { border-left-color: #E24B4A; }
+  .envvar {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px; color: #aaa; margin-top: 5px;
+  }
+
+  footer { margin-top: 2rem; font-size: 12px; color: #aaa; text-align: center; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>ansible.cfg settings reference</h1>
+  <p class="subtitle">Key configuration settings by section — click any setting to expand. Includes default values, impact level, and matching environment variable.</p>
+
+  <div class="wrap">
+    <div class="sec-tabs" id="sec-tabs"></div>
+    <div class="settings-list" id="settings-list"></div>
+  </div>
+
+  <footer>Generated from the Ansible expert roadmap · Chapter 1: Fundamentals</footer>
+</div>
+
+<script>
+const sections = {
+  '[defaults]': [
+    {key:'inventory', default:'./hosts', impact:'high',
+     desc:'Tells Ansible where to find hosts. Point to a directory (not a single file) so you can split inventory across multiple files and use group_vars/ subdirectories.',
+     code:`inventory = inventories/\n\n# Ansible loads all *.yml and *.ini files in that directory.\n# Run against a specific environment:\nansible-playbook -i inventories/production site.yml`,
+     tip:'Always use a directory, not a file. inventories/ lets you have inventories/production/, inventories/staging/ etc.',
+     env:'ANSIBLE_INVENTORY'},
+    {key:'roles_path', default:'./roles', impact:'high',
+     desc:'Where Ansible looks for roles. Can be a colon-separated list of paths — useful when combining project roles with shared org-wide roles.',
+     code:`roles_path = roles:~/.ansible/roles:/opt/shared-roles\n\n# Ansible searches left to right — project roles win over shared ones`,
+     tip:'Put your project roles first in the path so they take precedence over any globally installed roles.',
+     env:'ANSIBLE_ROLES_PATH'},
+    {key:'collections_path', default:'~/.ansible/collections', impact:'high',
+     desc:'Where collections are installed and looked up. Set to ./collections to keep them in the repo for reproducibility.',
+     code:`collections_path = ./collections\n\n# Install into this path:\nansible-galaxy collection install \\\n  -r requirements.yml \\\n  --collections-path ./collections`,
+     tip:'Commit the collections/ directory so CI runners work without internet access.',
+     env:'ANSIBLE_COLLECTIONS_PATH'},
+    {key:'forks', default:'5', impact:'high',
+     desc:'Number of hosts Ansible configures in parallel. Default of 5 is extremely conservative. For cloud environments, 20–50 is typical. Set based on your control node CPU and network.',
+     code:`forks = 20\n\n# Override per-run:\nansible-playbook site.yml --forks 50\n\n# Or via env:\nANSIBLE_FORKS=50 ansible-playbook site.yml`,
+     tip:'Increasing forks from 5 to 20 is often the single biggest speed improvement for large fleets — before even enabling pipelining.',
+     env:'ANSIBLE_FORKS'},
+    {key:'host_key_checking', default:'True', impact:'high',
+     desc:"Verifies SSH host fingerprints against ~/.ssh/known_hosts. Essential for security on static infrastructure. Set to False for ephemeral cloud instances (EC2, spot instances) that don't have stable host keys.",
+     code:`host_key_checking = False\n\n# Or suppress per-run:\nANSIBLE_HOST_KEY_CHECKING=False ansible-playbook site.yml`,
+     tip:'Never disable this in production on long-lived servers. Only disable for ephemeral infrastructure where host key rotation is expected.',
+     tipClass:'warn',
+     env:'ANSIBLE_HOST_KEY_CHECKING'},
+    {key:'vault_password_file', default:'none', impact:'high',
+     desc:'Path to a file containing the Ansible Vault password. Avoids being prompted for the password on every run. The file must be in .gitignore.',
+     code:`vault_password_file = .vault_pass\n\n# .vault_pass contains just the password:\necho "myv@ultpassword" > .vault_pass\nchmod 600 .vault_pass\necho ".vault_pass" >> .gitignore\n\n# In CI, create it from a secret:\necho "$VAULT_PASSWORD" > .vault_pass`,
+     tip:'chmod 600 .vault_pass so only your user can read it.',
+     env:'ANSIBLE_VAULT_PASSWORD_FILE'},
+    {key:'stdout_callback', default:'default', impact:'med',
+     desc:"Controls how playbook output is formatted. 'yaml' is far more readable than the default. 'json' is useful for machine parsing in CI. 'debug' shows verbose output without needing -vvv.",
+     code:`stdout_callback = yaml\n\n# Options: default, yaml, json, debug, minimal, dense\n# yaml is the best for human readability:\n\nPLAY [Deploy application] ****\nTASK [nginx : Install nginx] ****\nok: [web-01]\nchanged: [web-02]`,
+     tip:'Set yaml globally in ansible.cfg. You can always override per-run with ANSIBLE_STDOUT_CALLBACK=json for CI log parsing.',
+     env:'ANSIBLE_STDOUT_CALLBACK'},
+    {key:'gather_facts', default:'True', impact:'med',
+     desc:"Controls whether Ansible runs the setup module at the start of every play to collect system facts (OS, IP, memory etc). Adds ~2-3 seconds per host. Disable for plays that don't need facts.",
+     code:`gather_facts = True   # global default\n\n# Disable per-play for speed:\n- hosts: webservers\n  gather_facts: false   # skip for this play\n  tasks:\n    - name: Quick restart\n      ansible.builtin.service:\n        name: nginx\n        state: restarted`,
+     tip:'Leave gather_facts enabled globally but override to false on individual plays that are purely operational (restarts, one-liners).',
+     env:'ANSIBLE_GATHERING'},
+    {key:'retry_files_enabled', default:'False', impact:'low',
+     desc:'When True, Ansible creates a .retry file on failure listing the hosts that failed. You can then re-run against only those hosts with --limit @site.retry. Disabled by default since Ansible 2.12.',
+     code:`retry_files_enabled = False\n\n# If enabled and a play fails:\n# site.retry is created with the failed hosts\nansible-playbook site.yml --limit @site.retry`,
+     tip:'Keep disabled unless you specifically use retry files in your workflow — they clutter the project directory.',
+     env:'ANSIBLE_RETRY_FILES_ENABLED'},
+  ],
+  '[ssh_connection]': [
+    {key:'pipelining', default:'False', impact:'high',
+     desc:'Sends the module code directly over SSH stdin instead of writing it to a temp file first. Eliminates one SSH round-trip per task. Can improve speed by 30–50% on task-heavy playbooks.',
+     code:`pipelining = True\n\n# Requirement: requiretty must be disabled in /etc/sudoers\n# On Ubuntu/Debian EC2 instances this is already the case.\n\n# Verify it is working with -vvv:\n# You should NOT see: "sftp/scp PUT" lines\n# You SHOULD see:    "EXEC /bin/sh -c '...'"`,
+     tip:'Always enable this. The requiretty issue that used to block it is not present on modern Ubuntu/Debian cloud images.',
+     env:'ANSIBLE_PIPELINING'},
+    {key:'ssh_args', default:'-C -o ControlMaster=auto -o ControlPersist=60s', impact:'high',
+     desc:'Extra arguments passed to the ssh binary for every connection. The key ones are ControlMaster (connection multiplexing) and ControlPersist (how long to keep the socket alive).',
+     code:`ssh_args = -o ControlMaster=auto \\\n           -o ControlPersist=60s \\\n           -o ControlPath=/tmp/ansible-ssh-%h-%p-%r\n\n# ControlMaster=auto  — reuse existing SSH connection if available\n# ControlPersist=60s  — keep master socket alive 60s after last use\n# ControlPath         — socket file path (%h=host %p=port %r=user)`,
+     tip:'Bump ControlPersist to 300s or higher for playbooks with long waits between tasks (e.g. wait_for, pause).',
+     env:'ANSIBLE_SSH_ARGS'},
+    {key:'transfer_method', default:'smart', impact:'med',
+     desc:"How Ansible transfers module files to targets when pipelining is off. 'smart' tries sftp first, then scp. With pipelining=True this setting is mostly irrelevant.",
+     code:`transfer_method = smart\n# Options: sftp, scp, piped, smart\n\n# If sftp is blocked by firewall rules:\ntransfer_method = scp`,
+     tip:'Only change this if you have connectivity issues. With pipelining=True it has no effect.',
+     env:'ANSIBLE_TRANSFER_METHOD'},
+    {key:'ssh_executable', default:'ssh', impact:'low',
+     desc:"Path to the SSH binary. Relevant on macOS where the system SSH (LibreSSL-based) sometimes has ControlMaster quirks. Point to Homebrew's OpenSSH to avoid them.",
+     code:`# macOS: use Homebrew OpenSSH instead of system SSH\nssh_executable = /opt/homebrew/bin/ssh\n\n# Or the Intel Mac path:\nssh_executable = /usr/local/bin/ssh`,
+     tip:'Only relevant on macOS. Linux systems use OpenSSH natively and this setting can be left at its default.',
+     env:'ANSIBLE_SSH_EXECUTABLE'},
+  ],
+  '[privilege_escalation]': [
+    {key:'become', default:'False', impact:'high',
+     desc:'Global default for privilege escalation. When True, all tasks run with become unless explicitly overridden. Best practice: leave False globally and enable per-play or per-task where needed.',
+     code:`become = False   # global default — do NOT set to True here\n\n# Enable per play:\n- hosts: webservers\n  become: true\n\n# Enable per task:\n- name: Install nginx\n  ansible.builtin.package:\n    name: nginx\n  become: true`,
+     tip:'Never set become=True globally in ansible.cfg — you will accidentally run read-only tasks as root. Enable it explicitly where needed.',
+     tipClass:'warn',
+     env:'ANSIBLE_BECOME'},
+    {key:'become_method', default:'sudo', impact:'med',
+     desc:"How privilege escalation is performed. 'sudo' is correct for virtually all Linux environments. 'su' for systems without sudo. 'pbrun', 'pfexec', 'doas' for specialist environments.",
+     code:`become_method = sudo\n\n# Requires NOPASSWD in /etc/sudoers for automation:\n# ubuntu ALL=(ALL) NOPASSWD: ALL\n\n# Or more restrictive:\n# ubuntu ALL=(ALL) NOPASSWD: /usr/bin/apt, /bin/systemctl`,
+     tip:'For CI/CD and automated runs, configure NOPASSWD in sudoers for the Ansible user. Ansible will hang waiting for a password otherwise.',
+     env:'ANSIBLE_BECOME_METHOD'},
+    {key:'become_user', default:'root', impact:'low',
+     desc:"The user to escalate to. Defaults to root — almost always what you want. Can be overridden per task to become a specific service user.",
+     code:`become_user = root   # default\n\n# Become a specific app user for one task:\n- name: Run database migration\n  ansible.builtin.command: python manage.py migrate\n  become: true\n  become_user: appuser`,
+     tip:'',
+     env:'ANSIBLE_BECOME_USER'},
+  ],
+};
+
+let currentSection = '[defaults]';
+const tabsEl = document.getElementById('sec-tabs');
+const listEl = document.getElementById('settings-list');
+
+function renderSettings(sec) {
+  listEl.innerHTML = '';
+  sections[sec].forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'setting';
+    div.innerHTML = `
+      <div class="shead" onclick="this.parentElement.classList.toggle('open')">
+        <span class="skey">${s.key}</span>
+        <span class="sdefault">= ${s.default}</span>
+        <span class="simpact imp-${s.impact}">${s.impact} impact</span>
+        <span class="sarrow">▾</span>
+      </div>
+      <div class="sbody">
+        <p class="sdesc">${s.desc}</p>
+        <div class="code-block">${s.code}</div>
+        ${s.tip ? `<div class="stip ${s.tipClass||''}">${s.tip}</div>` : ''}
+        <div class="envvar">env var: ${s.env}</div>
+      </div>`;
+    listEl.appendChild(div);
+  });
+}
+
+Object.keys(sections).forEach(sec => {
+  const btn = document.createElement('button');
+  btn.className = 'stab' + (sec === currentSection ? ' active' : '');
+  btn.textContent = sec;
+  btn.onclick = () => {
+    currentSection = sec;
+    document.querySelectorAll('.stab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderSettings(sec);
+  };
+  tabsEl.appendChild(btn);
+});
+
+renderSettings(currentSection);
+</script>
+</body>
+</html>
