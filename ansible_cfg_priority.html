@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ansible Config Priority Order</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f5f0;
+    color: #1a1a18;
+    padding: 2rem 1rem;
+    line-height: 1.6;
+  }
+  .page { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: #6b6b65; margin-bottom: 1.75rem; }
+
+  .chain { display: flex; flex-direction: column; gap: 0; }
+
+  .level { display: flex; align-items: stretch; gap: 12px; margin-bottom: 4px; cursor: pointer; }
+  .level:hover .lcard { background: #eeeee8; }
+
+  .lnum { width: 28px; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+  .lbubble {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 500; flex-shrink: 0;
+  }
+  .lline { flex: 1; width: 1.5px; background: #d0d0c8; margin: 0 auto; }
+  .level:last-child .lline { display: none; }
+
+  .lcard {
+    flex: 1; border: 0.5px solid #ddddd5; border-radius: 12px;
+    padding: 12px 16px; background: #fff; transition: background .15s;
+    margin-bottom: 4px;
+  }
+  .lcard.active { border-color: #534AB7; border-width: 1px; }
+
+  .ltop { display: flex; align-items: center; gap: 10px; }
+  .ltitle { font-size: 13px; font-weight: 500; color: #1a1a18; flex: 1; }
+  .lpath { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; color: #8a8a82; margin-top: 3px; }
+  .ltag { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+
+  .ldetail { display: none; margin-top: 10px; padding-top: 10px; border-top: 0.5px solid #e8e8e0; }
+  .ldetail.open { display: block; }
+
+  .ldesc { font-size: 13px; color: #2a2a28; line-height: 1.65; margin-bottom: 10px; }
+
+  .code-block {
+    background: #f5f5f0; border: 0.5px solid #ddddd5; border-radius: 8px;
+    padding: 9px 13px; font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px; color: #2a2a28; line-height: 1.75;
+    white-space: pre; overflow-x: auto;
+  }
+
+  .tip {
+    font-size: 12px; color: #555550; margin-top: 8px; padding: 6px 10px;
+    background: #f5f5f0; border-radius: 0 6px 6px 0;
+    border-left: 2px solid #1D9E75; line-height: 1.55;
+  }
+  .tip.warn { border-left-color: #E24B4A; }
+
+  .tag-1 { background: #EEEDFE; color: #3C3489; }
+  .tag-2 { background: #E1F5EE; color: #085041; }
+  .tag-3 { background: #FAEEDA; color: #633806; }
+  .tag-4 { background: #FAECE7; color: #712B13; }
+  .tag-5 { background: #F1EFE8; color: #5F5E5A; }
+
+  .bubble-1 { background: #EEEDFE; color: #3C3489; }
+  .bubble-2 { background: #E1F5EE; color: #085041; }
+  .bubble-3 { background: #FAEEDA; color: #633806; }
+  .bubble-4 { background: #FAECE7; color: #712B13; }
+  .bubble-5 { background: #F1EFE8; color: #5F5E5A; }
+
+  .hint { font-size: 12px; color: #aaa; text-align: center; margin-bottom: 1rem; }
+  footer { margin-top: 2rem; font-size: 12px; color: #aaa; text-align: center; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>ansible.cfg priority order</h1>
+  <p class="subtitle">Ansible checks these locations in order and stops at the first one it finds. Higher number = lower priority. Click any level to expand.</p>
+  <p class="hint">▾ click any card to expand</p>
+
+  <div class="chain" id="chain"></div>
+
+  <footer>Generated from the Ansible expert roadmap · Chapter 1: Fundamentals</footer>
+</div>
+
+<script>
+const levels = [
+  {
+    num: 1, tagClass: 'tag-1', bubbleClass: 'bubble-1', tag: 'Highest priority',
+    title: 'ANSIBLE_CONFIG environment variable',
+    path: 'export ANSIBLE_CONFIG=/path/to/custom.cfg',
+    desc: 'If this env var is set, Ansible uses that file and stops looking. Overrides everything. Useful in CI to point to a pipeline-specific config without changing project files.',
+    code: `# In GitHub Actions or GitLab CI:
+export ANSIBLE_CONFIG=/etc/ansible/ci.cfg
+ansible-playbook site.yml
+
+# Or inline:
+ANSIBLE_CONFIG=./ci-ansible.cfg ansible-playbook site.yml`,
+    tip: 'CI pipelines often set this to inject environment-specific settings (disable host key checking, set a different vault file) without modifying the committed ansible.cfg.',
+    tipClass: ''
+  },
+  {
+    num: 2, tagClass: 'tag-2', bubbleClass: 'bubble-2', tag: 'Recommended',
+    title: './ansible.cfg — project directory',
+    path: './ansible.cfg  (current working directory)',
+    desc: 'The project-scoped config. This is the one you commit to git. Ansible looks for it in the directory from which you run ansible-playbook — so always run playbooks from the project root.',
+    code: `# ansible.cfg in your repo root:
+[defaults]
+inventory          = inventories/
+roles_path         = roles
+collections_path   = ./collections
+vault_password_file= .vault_pass
+forks              = 20
+host_key_checking  = False
+stdout_callback    = yaml
+
+[ssh_connection]
+pipelining         = True
+ssh_args           = -o ControlMaster=auto -o ControlPersist=60s`,
+    tip: 'This is the right place for 95% of your config. Commit it to git so the whole team and CI use identical settings.',
+    tipClass: ''
+  },
+  {
+    num: 3, tagClass: 'tag-3', bubbleClass: 'bubble-3', tag: 'Per-user',
+    title: '~/.ansible.cfg — home directory',
+    path: '~/.ansible.cfg',
+    desc: "The user's personal config. Applies to all Ansible projects run by this user unless overridden by a project-level config. Good for personal preferences like output format or default remote user.",
+    code: `# ~/.ansible.cfg — personal overrides
+[defaults]
+stdout_callback    = yaml     # prefer yaml output
+remote_user        = ubuntu   # your default SSH user
+private_key_file   = ~/.ssh/id_ed25519
+
+# These get overridden by any project-level ansible.cfg`,
+    tip: "Avoid putting project-specific settings here. If a colleague clones your repo and runs it, their ~/.ansible.cfg is different — leading to 'works on my machine' issues.",
+    tipClass: 'warn'
+  },
+  {
+    num: 4, tagClass: 'tag-4', bubbleClass: 'bubble-4', tag: 'System-wide',
+    title: '/etc/ansible/ansible.cfg — system default',
+    path: '/etc/ansible/ansible.cfg',
+    desc: 'System-wide default. Applies to all users on the machine if no other config is found. Usually contains bare minimum defaults. On most systems this file barely exists or has minimal content.',
+    code: `# /etc/ansible/ansible.cfg — system default
+# Usually just:
+[defaults]
+# (mostly empty — rely on built-in Ansible defaults)`,
+    tip: 'In containerized environments (Docker, CI runners), this file may not exist at all. That is fine — Ansible falls back to its compiled-in defaults.',
+    tipClass: ''
+  },
+  {
+    num: 5, tagClass: 'tag-5', bubbleClass: 'bubble-5', tag: 'Lowest priority',
+    title: 'Ansible built-in defaults',
+    path: 'compiled into the ansible-core package',
+    desc: 'If no config file is found anywhere, Ansible uses its hardcoded defaults. Notable defaults: forks=5, host_key_checking=True, stdout_callback=default.',
+    code: `# Key built-in defaults you will want to override:
+forks              = 5       # too low for large fleets
+host_key_checking  = True    # breaks on new EC2 instances
+stdout_callback    = default # hard to read; use 'yaml'
+gather_facts       = True    # can be slow; disable per-play
+pipelining         = False   # always enable this`,
+    tip: null,
+    tipClass: ''
+  }
+];
+
+const chain = document.getElementById('chain');
+
+levels.forEach((l, i) => {
+  const div = document.createElement('div');
+  div.className = 'level';
+
+  div.innerHTML = `
+    <div class="lnum">
+      <div class="lbubble ${l.bubbleClass}">${l.num}</div>
+      <div class="lline"></div>
+    </div>
+    <div class="lcard" id="lcard${i}">
+      <div class="ltop">
+        <div class="ltitle">${l.title}</div>
+        <span class="ltag ${l.tagClass}">${l.tag}</span>
+      </div>
+      <div class="lpath">${l.path}</div>
+      <div class="ldetail" id="ldetail${i}">
+        <p class="ldesc">${l.desc}</p>
+        <div class="code-block">${l.code}</div>
+        ${l.tip ? `<div class="tip ${l.tipClass}">${l.tip}</div>` : ''}
+      </div>
+    </div>`;
+
+  div.onclick = () => {
+    const det = document.getElementById('ldetail' + i);
+    const card = document.getElementById('lcard' + i);
+    const isOpen = det.classList.contains('open');
+    document.querySelectorAll('.ldetail').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.lcard').forEach(c => c.classList.remove('active'));
+    if (!isOpen) {
+      det.classList.add('open');
+      card.classList.add('active');
+    }
+  };
+
+  chain.appendChild(div);
+});
+</script>
+</body>
+</html>
