@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ansible Inventory: INI vs YAML</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f5f0;
+    color: #1a1a18;
+    padding: 2rem 1rem;
+    line-height: 1.6;
+  }
+  .page { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: #6b6b65; margin-bottom: 1.75rem; }
+
+  .top-tabs { display: flex; gap: 0; border-bottom: 0.5px solid #ddddd5; margin-bottom: 1.25rem; }
+  .ttab {
+    padding: 9px 18px; font-size: 13px; font-weight: 500; cursor: pointer;
+    color: #6b6b65; border-bottom: 2px solid transparent;
+    transition: all .15s; user-select: none; margin-bottom: -0.5px;
+    background: none; border-top: none; border-left: none; border-right: none;
+    font-family: inherit;
+  }
+  .ttab.active { color: #534AB7; border-bottom-color: #534AB7; }
+  .ttab:hover:not(.active) { color: #3a3a38; }
+
+  .pane { display: none; }
+  .pane.visible { display: block; }
+
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+    gap: 12px; margin-bottom: 14px;
+  }
+  .panel {
+    border: 0.5px solid #ddddd5; border-radius: 12px;
+    overflow: hidden; background: #fff;
+  }
+  .panel-head {
+    padding: 10px 14px; border-bottom: 0.5px solid #ddddd5;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel-title { font-size: 13px; font-weight: 500; color: #1a1a18; flex: 1; }
+  .badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
+  .badge-ini   { background: #FAEEDA; color: #633806; }
+  .badge-yaml  { background: #EEEDFE; color: #3C3489; }
+  .badge-rec   { background: #E1F5EE; color: #085041; }
+
+  .code-area {
+    padding: 12px 14px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px; line-height: 1.9; color: #1a1a18;
+    background: #f5f5f0; white-space: pre; overflow-x: auto;
+  }
+  .hl-comment { color: #9a9a92; font-style: italic; }
+  .hl-section { color: #854F0B; font-weight: 600; }
+  .hl-host    { color: #185FA5; font-weight: 600; }
+  .hl-key     { color: #3C3489; }
+  .hl-val     { color: #0F6E56; }
+  .hl-struct  { color: #993C1D; font-weight: 600; }
+
+  .annotation-list { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .ann { display: flex; gap: 10px; align-items: flex-start; }
+  .ann-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .ann-text { font-size: 12px; color: #1a1a18; line-height: 1.6; }
+  .ann-text code {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+    background: #f0f0ea; padding: 1px 5px; border-radius: 4px; color: #1a1a18;
+  }
+  .dot-amber  { background: #BA7517; }
+  .dot-purple { background: #534AB7; }
+  .dot-teal   { background: #1D9E75; }
+  .dot-coral  { background: #D85A30; }
+
+  .cmp-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; margin-bottom: 14px; }
+  .cmp-card { border: 0.5px solid #ddddd5; border-radius: 12px; overflow: hidden; background: #fff; }
+  .cmp-card.featured { border-color: #AFA9EC; }
+  .cmp-head {
+    padding: 10px 14px; border-bottom: 0.5px solid #ddddd5;
+    font-size: 13px; font-weight: 500; color: #1a1a18;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .cmp-body { padding: 10px 14px; }
+  .cmp-row { display: flex; gap: 8px; margin-bottom: 7px; align-items: flex-start; font-size: 12px; }
+  .cmp-row:last-child { margin-bottom: 0; }
+  .tick  { color: #1D9E75; font-weight: 600; flex-shrink: 0; }
+  .cross { color: #E24B4A; font-weight: 600; flex-shrink: 0; }
+  .cmp-text { color: #1a1a18; line-height: 1.5; }
+  .cmp-text code {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+    background: #f0f0ea; padding: 1px 5px; border-radius: 4px;
+  }
+
+  .when-card {
+    border: 0.5px solid #ddddd5; border-radius: 12px;
+    padding: 13px 16px; background: #fff; margin-bottom: 8px;
+  }
+  .when-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .when-title { font-size: 13px; font-weight: 500; color: #1a1a18; }
+  .when-body { font-size: 12px; color: #5a5a55; line-height: 1.65; }
+  .when-body code {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+    background: #f0f0ea; padding: 1px 5px; border-radius: 4px; color: #1a1a18;
+  }
+
+  .tip {
+    font-size: 12px; color: #5a5a55; margin-top: 8px; padding: 8px 12px;
+    background: #f0f0ea; border-radius: 0 6px 6px 0;
+    border-left: 2px solid #1D9E75; line-height: 1.55;
+  }
+  .tip.warn { border-left-color: #E24B4A; }
+
+  footer { margin-top: 2.5rem; font-size: 12px; color: #aaa; text-align: center; }
+
+  @media (max-width: 600px) {
+    .split, .cmp-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Ansible inventory: INI vs YAML</h1>
+  <p class="subtitle">Same inventory, two formats — annotated side-by-side with a decision guide for when to use each.</p>
+
+  <div class="top-tabs">
+    <button class="ttab active" onclick="sw(0,this)">Side-by-side</button>
+    <button class="ttab" onclick="sw(1,this)">Nested groups</button>
+    <button class="ttab" onclick="sw(2,this)">When to use each</button>
+  </div>
+
+  <!-- PANE 0: Side by side -->
+  <div class="pane visible" id="p0">
+    <div class="split">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">hosts.ini</span>
+          <span class="badge badge-ini">INI format</span>
+        </div>
+        <div class="code-area"><span class="hl-comment"># ungrouped hosts at the top</span>
+<span class="hl-host">bastion.example.com</span>
+
+<span class="hl-section">[webservers]</span>
+<span class="hl-host">web-01</span> <span class="hl-key">ansible_host</span>=<span class="hl-val">10.0.1.10</span>
+<span class="hl-host">web-02</span> <span class="hl-key">ansible_host</span>=<span class="hl-val">10.0.1.11</span> <span class="hl-key">ansible_port</span>=<span class="hl-val">2222</span>
+
+<span class="hl-section">[databases]</span>
+<span class="hl-host">db-01</span> <span class="hl-key">ansible_host</span>=<span class="hl-val">10.0.2.10</span>
+<span class="hl-host">db-02</span> <span class="hl-key">ansible_host</span>=<span class="hl-val">10.0.2.11</span>
+
+<span class="hl-section">[webservers:vars]</span>
+<span class="hl-key">nginx_port</span>=<span class="hl-val">80</span>
+<span class="hl-key">ansible_user</span>=<span class="hl-val">ubuntu</span>
+
+<span class="hl-section">[databases:vars]</span>
+<span class="hl-key">pg_version</span>=<span class="hl-val">16</span>
+<span class="hl-key">ansible_user</span>=<span class="hl-val">ubuntu</span>
+
+<span class="hl-section">[production:children]</span>
+<span class="hl-val">webservers</span>
+<span class="hl-val">databases</span></div>
+        <div class="annotation-list">
+          <div class="ann"><div class="ann-dot dot-amber"></div><div class="ann-text"><code>[group]</code> — section header defines a group</div></div>
+          <div class="ann"><div class="ann-dot dot-amber"></div><div class="ann-text"><code>[group:vars]</code> — variables for all hosts in the group</div></div>
+          <div class="ann"><div class="ann-dot dot-amber"></div><div class="ann-text"><code>[group:children]</code> — makes a group of groups</div></div>
+          <div class="ann"><div class="ann-dot dot-amber"></div><div class="ann-text">Host vars go inline: <code>host key=value key=value</code></div></div>
+        </div>
+      </div>
+
+      <div class="panel" style="border-color:#AFA9EC">
+        <div class="panel-head">
+          <span class="panel-title">hosts.yml</span>
+          <span class="badge badge-yaml">YAML format</span>
+          <span class="badge badge-rec">recommended</span>
+        </div>
+        <div class="code-area"><span class="hl-comment">---</span>
+<span class="hl-struct">all:</span>
+  <span class="hl-struct">hosts:</span>
+    <span class="hl-host">bastion.example.com:</span>
+
+  <span class="hl-struct">children:</span>
+    <span class="hl-struct">webservers:</span>
+      <span class="hl-struct">hosts:</span>
+        <span class="hl-host">web-01:</span>
+          <span class="hl-key">ansible_host</span>: <span class="hl-val">10.0.1.10</span>
+        <span class="hl-host">web-02:</span>
+          <span class="hl-key">ansible_host</span>: <span class="hl-val">10.0.1.11</span>
+          <span class="hl-key">ansible_port</span>: <span class="hl-val">2222</span>
+      <span class="hl-struct">vars:</span>
+        <span class="hl-key">nginx_port</span>: <span class="hl-val">80</span>
+        <span class="hl-key">ansible_user</span>: <span class="hl-val">ubuntu</span>
+
+    <span class="hl-struct">databases:</span>
+      <span class="hl-struct">hosts:</span>
+        <span class="hl-host">db-01:</span>
+          <span class="hl-key">ansible_host</span>: <span class="hl-val">10.0.2.10</span>
+        <span class="hl-host">db-02:</span>
+          <span class="hl-key">ansible_host</span>: <span class="hl-val">10.0.2.11</span>
+      <span class="hl-struct">vars:</span>
+        <span class="hl-key">pg_version</span>: <span class="hl-val">16</span>
+        <span class="hl-key">ansible_user</span>: <span class="hl-val">ubuntu</span>
+
+    <span class="hl-struct">production:</span>
+      <span class="hl-struct">children:</span>
+        <span class="hl-struct">webservers:</span>
+        <span class="hl-struct">databases:</span></div>
+        <div class="annotation-list">
+          <div class="ann"><div class="ann-dot dot-purple"></div><div class="ann-text"><code>all:</code> is the root — every host belongs to it</div></div>
+          <div class="ann"><div class="ann-dot dot-purple"></div><div class="ann-text"><code>children:</code> holds sub-groups (replaces <code>:children</code>)</div></div>
+          <div class="ann"><div class="ann-dot dot-purple"></div><div class="ann-text"><code>vars:</code> sits inside the group block (not a separate section)</div></div>
+          <div class="ann"><div class="ann-dot dot-purple"></div><div class="ann-text">Indentation = hierarchy — structure is immediately visible</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tip">Both files produce <strong>identical results</strong> when Ansible parses them. Verify with: <code>ansible-inventory -i hosts.yml --graph</code></div>
+  </div>
+
+  <!-- PANE 1: Nested groups -->
+  <div class="pane" id="p1">
+    <div class="split">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Nested groups — INI</span>
+          <span class="badge badge-ini">INI format</span>
+        </div>
+        <div class="code-area"><span class="hl-section">[atlanta_webservers]</span>
+<span class="hl-host">web-atl-01</span> <span class="hl-key">ansible_host</span>=<span class="hl-val">10.1.1.10</span>
+<span class="hl-host">web-atl-02</span> <span class="hl-key">ansible_host</span>=<span class="hl-val">10.1.1.11</span>
+
+<span class="hl-section">[london_webservers]</span>
+<span class="hl-host">web-lon-01</span> <span class="hl-key">ansible_host</span>=<span class="hl-val">10.2.1.10</span>
+<span class="hl-host">web-lon-02</span> <span class="hl-key">ansible_host</span>=<span class="hl-val">10.2.1.11</span>
+
+<span class="hl-comment"># Group of groups — defined separately</span>
+<span class="hl-section">[webservers:children]</span>
+<span class="hl-val">atlanta_webservers</span>
+<span class="hl-val">london_webservers</span>
+
+<span class="hl-section">[atlanta_webservers:vars]</span>
+<span class="hl-key">aws_region</span>=<span class="hl-val">us-east-1</span>
+<span class="hl-key">datacenter</span>=<span class="hl-val">atl</span>
+
+<span class="hl-section">[london_webservers:vars]</span>
+<span class="hl-key">aws_region</span>=<span class="hl-val">eu-west-2</span>
+<span class="hl-key">datacenter</span>=<span class="hl-val">lon</span>
+
+<span class="hl-section">[webservers:vars]</span>
+<span class="hl-key">nginx_port</span>=<span class="hl-val">80</span>
+
+<span class="hl-comment"># Hard to see parent-child at a glance</span>
+<span class="hl-comment"># :children and :vars sections scattered</span></div>
+        <div class="annotation-list">
+          <div class="ann"><div class="ann-dot dot-coral"></div><div class="ann-text">Group relationships defined in separate <code>:children</code> sections — you must read the whole file to understand hierarchy</div></div>
+          <div class="ann"><div class="ann-dot dot-coral"></div><div class="ann-text">With many groups, <code>:vars</code> and <code>:children</code> sections get scattered throughout the file</div></div>
+        </div>
+      </div>
+
+      <div class="panel" style="border-color:#AFA9EC">
+        <div class="panel-head">
+          <span class="panel-title">Nested groups — YAML</span>
+          <span class="badge badge-yaml">YAML format</span>
+          <span class="badge badge-rec">recommended</span>
+        </div>
+        <div class="code-area"><span class="hl-comment">---</span>
+<span class="hl-struct">all:</span>
+  <span class="hl-struct">children:</span>
+    <span class="hl-struct">webservers:</span>
+      <span class="hl-struct">vars:</span>
+        <span class="hl-key">nginx_port</span>: <span class="hl-val">80</span>
+      <span class="hl-struct">children:</span>
+        <span class="hl-struct">atlanta_webservers:</span>
+          <span class="hl-struct">vars:</span>
+            <span class="hl-key">aws_region</span>: <span class="hl-val">us-east-1</span>
+            <span class="hl-key">datacenter</span>: <span class="hl-val">atl</span>
+          <span class="hl-struct">hosts:</span>
+            <span class="hl-host">web-atl-01:</span>
+              <span class="hl-key">ansible_host</span>: <span class="hl-val">10.1.1.10</span>
+            <span class="hl-host">web-atl-02:</span>
+              <span class="hl-key">ansible_host</span>: <span class="hl-val">10.1.1.11</span>
+
+        <span class="hl-struct">london_webservers:</span>
+          <span class="hl-struct">vars:</span>
+            <span class="hl-key">aws_region</span>: <span class="hl-val">eu-west-2</span>
+            <span class="hl-key">datacenter</span>: <span class="hl-val">lon</span>
+          <span class="hl-struct">hosts:</span>
+            <span class="hl-host">web-lon-01:</span>
+              <span class="hl-key">ansible_host</span>: <span class="hl-val">10.2.1.10</span>
+            <span class="hl-host">web-lon-02:</span>
+              <span class="hl-key">ansible_host</span>: <span class="hl-val">10.2.1.11</span></div>
+        <div class="annotation-list">
+          <div class="ann"><div class="ann-dot dot-teal"></div><div class="ann-text">Hierarchy is visually obvious — parent wraps children, vars sit inside their group</div></div>
+          <div class="ann"><div class="ann-dot dot-teal"></div><div class="ann-text">No need to jump around — group, its vars, and its hosts are all co-located</div></div>
+          <div class="ann"><div class="ann-dot dot-teal"></div><div class="ann-text">Supports complex values natively: lists, dicts, booleans — impossible in INI</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 2: When to use each -->
+  <div class="pane" id="p2">
+    <div class="cmp-grid">
+      <div class="cmp-card">
+        <div class="cmp-head"><span class="badge badge-ini" style="font-size:11px;padding:3px 10px">INI</span> Use when...</div>
+        <div class="cmp-body">
+          <div class="cmp-row"><span class="tick">+</span><span class="cmp-text">You're just getting started and want minimal syntax to learn</span></div>
+          <div class="cmp-row"><span class="tick">+</span><span class="cmp-text">Small, flat inventory — a handful of hosts, no nested groups</span></div>
+          <div class="cmp-row"><span class="tick">+</span><span class="cmp-text">Inheriting an existing INI inventory you don't want to rewrite</span></div>
+          <div class="cmp-row"><span class="tick">+</span><span class="cmp-text">Quick ad-hoc use: pasting a host list into a one-off file</span></div>
+          <div class="cmp-row"><span class="cross">-</span><span class="cmp-text">Avoid for complex nested groups — relationships get scattered</span></div>
+          <div class="cmp-row"><span class="cross">-</span><span class="cmp-text">Avoid when variable values are lists or dicts — INI can't express them</span></div>
+        </div>
+      </div>
+      <div class="cmp-card featured">
+        <div class="cmp-head"><span class="badge badge-yaml" style="font-size:11px;padding:3px 10px">YAML</span> Use when...</div>
+        <div class="cmp-body">
+          <div class="cmp-row"><span class="tick">+</span><span class="cmp-text">Starting any new project — make YAML the default from day one</span></div>
+          <div class="cmp-row"><span class="tick">+</span><span class="cmp-text">You have nested group hierarchies (region → env → role)</span></div>
+          <div class="cmp-row"><span class="tick">+</span><span class="cmp-text">Variables include lists, dicts, or multi-line values</span></div>
+          <div class="cmp-row"><span class="tick">+</span><span class="cmp-text">Team collaboration — easier to review in pull requests</span></div>
+          <div class="cmp-row"><span class="tick">+</span><span class="cmp-text">Generating inventory programmatically — YAML is easier to template</span></div>
+          <div class="cmp-row"><span class="cross">-</span><span class="cmp-text">Indentation errors cause cryptic failures — use a YAML linter</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="when-card">
+      <div class="when-head"><span class="badge badge-ini">INI limitation</span><span class="when-title" style="margin-left:4px">Variable types INI can't express</span></div>
+      <div class="when-body">INI values are always strings. Writing <code>my_list=one,two,three</code> in INI gives Ansible the string <code>"one,two,three"</code> — not a list. YAML handles this natively.</div>
+    </div>
+
+    <div class="split" style="margin-top:8px">
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">INI — strings only</span><span class="badge badge-ini">limited types</span></div>
+        <div class="code-area"><span class="hl-comment"># Looks like a list — it is NOT</span>
+<span class="hl-section">[webservers:vars]</span>
+<span class="hl-key">allowed_ips</span>=<span class="hl-val">10.0.0.1,10.0.0.2</span>
+<span class="hl-comment"># Ansible receives: "10.0.0.1,10.0.0.2"</span>
+
+<span class="hl-comment"># Booleans are strings too</span>
+<span class="hl-key">debug_mode</span>=<span class="hl-val">true</span>
+<span class="hl-comment"># Received as string "true", not boolean</span></div>
+      </div>
+      <div class="panel" style="border-color:#AFA9EC">
+        <div class="panel-head"><span class="panel-title">YAML — native types</span><span class="badge badge-yaml">rich types</span></div>
+        <div class="code-area"><span class="hl-comment"># Real YAML list</span>
+<span class="hl-struct">vars:</span>
+  <span class="hl-key">allowed_ips</span>:
+    - <span class="hl-val">10.0.0.1</span>
+    - <span class="hl-val">10.0.0.2</span>
+  <span class="hl-comment"># Ansible receives an actual list</span>
+
+  <span class="hl-comment"># Real boolean</span>
+  <span class="hl-key">debug_mode</span>: <span class="hl-val">true</span>
+  <span class="hl-comment"># Received as boolean True</span></div>
+      </div>
+    </div>
+
+    <div class="tip" style="margin-top:10px">
+      Debug tip: <code>ansible-inventory -i hosts.yml --list</code> dumps the fully parsed inventory as JSON — use it to verify your variables are the correct types (list vs string, boolean vs string).
+    </div>
+  </div>
+
+  <footer>Generated from the Ansible expert roadmap · Chapter 2: Inventory Management</footer>
+</div>
+
+<script>
+function sw(i, btn) {
+  document.querySelectorAll('.ttab').forEach((t,j) => t.classList.toggle('active', i===j));
+  document.querySelectorAll('.pane').forEach((p,j) => p.classList.toggle('visible', i===j));
+}
+</script>
+</body>
+</html>
