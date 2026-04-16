@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ansible Dynamic Inventory — AWS EC2, Azure, GCP & Custom Scripts</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f5f0;
+    color: #1a1a18;
+    padding: 2rem 1rem;
+    line-height: 1.6;
+  }
+  .page { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: #6b6b65; margin-bottom: 1.75rem; }
+
+  .top-tabs { display: flex; gap: 0; border-bottom: 0.5px solid #ddddd5; margin-bottom: 1.25rem; overflow-x: auto; }
+  .ttab {
+    padding: 9px 16px; font-size: 13px; font-weight: 500; cursor: pointer;
+    color: #6b6b65; border-bottom: 2px solid transparent; white-space: nowrap;
+    transition: all .15s; user-select: none; margin-bottom: -0.5px;
+    background: none; border-top: none; border-left: none; border-right: none;
+    font-family: inherit;
+  }
+  .ttab.active { color: #534AB7; border-bottom-color: #534AB7; }
+  .ttab:hover:not(.active) { color: #3a3a38; }
+
+  .pane { display: none; }
+  .pane.visible { display: block; }
+
+  .card { border: 0.5px solid #ddddd5; border-radius: 12px; overflow: hidden; background: #fff; margin-bottom: 10px; }
+  .card-head {
+    padding: 11px 15px; border-bottom: 0.5px solid #ddddd5;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; user-select: none; transition: background .15s;
+  }
+  .card-head:hover { background: #f5f5f0; }
+  .card-title { font-size: 13px; font-weight: 500; color: #1a1a18; flex: 1; }
+  .card-arrow { font-size: 12px; color: #aaa; transition: transform .2s; }
+  .card.open .card-arrow { transform: rotate(180deg); }
+  .card-body { display: none; }
+  .card.open .card-body { display: block; }
+  .cb { padding: 13px 15px; }
+
+  .badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+  .bp { background: #EEEDFE; color: #3C3489; }
+  .bt { background: #E1F5EE; color: #085041; }
+  .bc { background: #FAECE7; color: #712B13; }
+  .ba { background: #FAEEDA; color: #633806; }
+  .bg { background: #EAF3DE; color: #27500A; }
+  .bk { background: #F1EFE8; color: #5F5E5A; }
+
+  .code-area {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px; line-height: 1.85; color: #1a1a18;
+    background: #f5f5f0; border: 0.5px solid #ddddd5; border-radius: 8px;
+    padding: 11px 13px; white-space: pre; overflow-x: auto; margin-bottom: 8px;
+  }
+  .c  { color: #9a9a92; font-style: italic; }
+  .k  { color: #3C3489; }
+  .v  { color: #0F6E56; }
+  .s  { color: #854F0B; font-weight: 600; }
+  .h  { color: #185FA5; font-weight: 600; }
+
+  .blist { list-style: none; display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .blist li { display: flex; gap: 9px; align-items: flex-start; font-size: 13px; color: #1a1a18; line-height: 1.6; }
+  .blist li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: #aaa; flex-shrink: 0; margin-top: 7px; }
+  .blist li.good::before { background: #1D9E75; }
+  .blist li.warn::before { background: #E24B4A; }
+  .blist li.note::before { background: #534AB7; }
+  .blist code {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+    background: #f0f0ea; padding: 1px 5px; border-radius: 4px; color: #1a1a18;
+  }
+
+  .tip {
+    font-size: 12px; color: #555550; padding: 7px 11px;
+    border-radius: 0 6px 6px 0; border-left: 2px solid #1D9E75;
+    background: #f0f0ea; line-height: 1.55; margin-top: 8px;
+  }
+  .tip.warn { border-left-color: #E24B4A; }
+
+  .split { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; margin-bottom: 10px; }
+  .mini-card { border: 0.5px solid #ddddd5; border-radius: 12px; overflow: hidden; background: #fff; }
+  .mini-head { padding: 8px 12px; border-bottom: 0.5px solid #ddddd5; display: flex; gap: 7px; align-items: center; }
+  .mini-title { font-size: 12px; font-weight: 500; color: #1a1a18; }
+
+  footer { margin-top: 2.5rem; font-size: 12px; color: #aaa; text-align: center; }
+
+  @media (max-width: 600px) {
+    .split { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Ansible dynamic inventory</h1>
+  <p class="subtitle">AWS EC2, Azure, GCP, and custom scripts — annotated plugin configs, setup steps, debugging commands, and caching patterns.</p>
+
+  <div class="top-tabs">
+    <button class="ttab active" onclick="sw(0,this)">AWS EC2</button>
+    <button class="ttab" onclick="sw(1,this)">Azure</button>
+    <button class="ttab" onclick="sw(2,this)">GCP</button>
+    <button class="ttab" onclick="sw(3,this)">Custom scripts</button>
+    <button class="ttab" onclick="sw(4,this)">Tips &amp; debugging</button>
+  </div>
+
+  <!-- PANE 0: AWS EC2 -->
+  <div class="pane visible" id="p0">
+    <div class="card open">
+      <div class="card-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bp">setup</span><span class="card-title">Prerequisites</span><span class="card-arrow">▾</span>
+      </div>
+      <div class="card-body"><div class="cb">
+        <ul class="blist">
+          <li class="good">Install the collection: <code>ansible-galaxy collection install amazon.aws</code></li>
+          <li class="good">Install Python deps: <code>pip install boto3 botocore</code></li>
+          <li class="note">AWS credentials via env vars, <code>~/.aws/credentials</code>, or IAM instance role</li>
+          <li class="note">Required IAM permissions: <code>ec2:DescribeInstances</code>, <code>ec2:DescribeTags</code></li>
+        </ul>
+      </div></div>
+    </div>
+
+    <div class="card open">
+      <div class="card-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bp">config</span><span class="card-title">aws_ec2.yml — the inventory plugin file</span><span class="card-arrow">▾</span>
+      </div>
+      <div class="card-body"><div class="cb">
+        <ul class="blist">
+          <li class="note">File MUST end in <code>aws_ec2.yml</code> or <code>aws_ec2.yaml</code> — Ansible uses the filename to select the plugin</li>
+          <li class="note">Place it inside your inventory directory: <code>inventories/production/aws_ec2.yml</code></li>
+        </ul>
+        <div class="code-area"><span class="c">---</span>
+<span class="c"># inventories/production/aws_ec2.yml</span>
+<span class="k">plugin</span>: <span class="v">amazon.aws.aws_ec2</span>
+
+<span class="c"># Which regions to query</span>
+<span class="k">regions</span>:
+  - <span class="v">eu-west-2</span>
+  - <span class="v">us-east-1</span>
+
+<span class="c"># Only return running instances</span>
+<span class="k">filters</span>:
+  <span class="k">instance-state-name</span>: <span class="v">running</span>
+  <span class="s">tag:Environment</span>: <span class="v">production</span>   <span class="c"># filter by tag</span>
+
+<span class="c"># Use private IP (for VPC / bastion setups)</span>
+<span class="k">hostnames</span>:
+  - <span class="v">private-ip-address</span>
+
+<span class="c"># Auto-group by EC2 tags and attributes</span>
+<span class="k">keyed_groups</span>:
+  - <span class="k">key</span>: <span class="v">tags.Role</span>          <span class="c"># tag Role=webserver → group role_webserver</span>
+    <span class="k">prefix</span>: <span class="v">role</span>
+  - <span class="k">key</span>: <span class="v">tags.Environment</span>
+    <span class="k">prefix</span>: <span class="v">env</span>
+  - <span class="k">key</span>: <span class="v">placement.region</span>   <span class="c"># auto-group by region</span>
+    <span class="k">prefix</span>: <span class="v">aws_region</span>
+
+<span class="c"># Expose EC2 metadata as host vars</span>
+<span class="k">compose</span>:
+  <span class="k">ansible_host</span>: <span class="v">private_ip_address</span>
+  <span class="k">ec2_instance_type</span>: <span class="v">instance_type</span>
+  <span class="k">ec2_region</span>: <span class="v">placement.region</span></div>
+        <ul class="blist" style="margin-top:8px">
+          <li class="good"><code>keyed_groups</code> auto-creates Ansible groups from EC2 tags — tag an instance <code>Role=webserver</code> and it lands in group <code>role_webserver</code> automatically</li>
+          <li class="good"><code>compose</code> maps EC2 metadata fields to Ansible host variables</li>
+          <li class="warn">Avoid <code>public-ip-address</code> as hostname in production — use private IP with a bastion or VPN</li>
+        </ul>
+      </div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bp">usage</span><span class="card-title">Using the dynamic inventory</span><span class="card-arrow">▾</span>
+      </div>
+      <div class="card-body"><div class="cb">
+        <div class="code-area"><span class="c"># Verify what hosts are returned:</span>
+ansible-inventory -i inventories/production/ --graph
+
+<span class="c"># Output (groups auto-created from tags):</span>
+@all:
+  |--@role_webserver:
+  |  |--10.0.1.10
+  |  |--10.0.1.11
+  |--@role_database:
+  |  |--10.0.2.10
+  |--@env_production:
+  |  |--10.0.1.10
+  |  |--10.0.2.10
+
+<span class="c"># Run a playbook against a tag-based group:</span>
+ansible-playbook -i inventories/production/ \
+  playbooks/deploy.yml \
+  --limit role_webserver</div>
+        <ul class="blist" style="margin-top:8px">
+          <li class="note">Mix static and dynamic inventory in the same directory — Ansible merges them automatically</li>
+          <li class="note">Add a static <code>group_vars/role_webserver/main.yml</code> and it applies to all EC2 instances with <code>Role=webserver</code> tag</li>
+        </ul>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- PANE 1: Azure -->
+  <div class="pane" id="p1">
+    <div class="card open">
+      <div class="card-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bt">setup</span><span class="card-title">Prerequisites</span><span class="card-arrow">▾</span>
+      </div>
+      <div class="card-body"><div class="cb">
+        <ul class="blist">
+          <li class="good">Install the collection: <code>ansible-galaxy collection install azure.azcollection</code></li>
+          <li class="good">Install Python deps: <code>pip install -r ~/.ansible/collections/ansible_collections/azure/azcollection/requirements.txt</code></li>
+          <li class="note">Auth via service principal (recommended for CI), managed identity, or <code>az login</code> for local dev</li>
+        </ul>
+      </div></div>
+    </div>
+
+    <div class="card open">
+      <div class="card-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bt">config</span><span class="card-title">azure_rm.yml — the inventory plugin file</span><span class="card-arrow">▾</span>
+      </div>
+      <div class="card-body"><div class="cb">
+        <ul class="blist">
+          <li class="note">File MUST end in <code>azure_rm.yml</code> or <code>azure_rm.yaml</code></li>
+        </ul>
+        <div class="code-area"><span class="c">---</span>
+<span class="c"># inventories/production/azure_rm.yml</span>
+<span class="k">plugin</span>: <span class="v">azure.azcollection.azure_rm</span>
+
+<span class="c"># Filter by resource group</span>
+<span class="k">include_vm_resource_groups</span>:
+  - <span class="v">production-rg</span>
+  - <span class="v">shared-rg</span>
+
+<span class="c"># Auth via service principal (env vars)</span>
+<span class="k">auth_source</span>: <span class="v">env</span>
+<span class="c"># Env vars needed:</span>
+<span class="c"># AZURE_CLIENT_ID, AZURE_SECRET</span>
+<span class="c"># AZURE_SUBSCRIPTION_ID, AZURE_TENANT</span>
+
+<span class="c"># Group by tags</span>
+<span class="k">keyed_groups</span>:
+  - <span class="k">prefix</span>: <span class="v">role</span>
+    <span class="k">key</span>: <span class="v">tags.role | default('ungrouped')</span>
+  - <span class="k">prefix</span>: <span class="v">env</span>
+    <span class="k">key</span>: <span class="v">tags.environment | default('ungrouped')</span>
+
+<span class="c"># Use private IP</span>
+<span class="k">use_private_ip</span>: <span class="v">true</span>
+
+<span class="c"># Expose Azure metadata as vars</span>
+<span class="k">compose</span>:
+  <span class="k">ansible_host</span>: <span class="v">private_ipv4_addresses[0]</span>
+  <span class="k">azure_vm_size</span>: <span class="v">vm_size</span>
+  <span class="k">azure_location</span>: <span class="v">location</span></div>
+        <ul class="blist" style="margin-top:8px">
+          <li class="good">Service principal auth is recommended for CI — set the four env vars as pipeline secrets</li>
+          <li class="good"><code>| default('ungrouped')</code> prevents errors when a VM is missing the expected tag</li>
+        </ul>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- PANE 2: GCP -->
+  <div class="pane" id="p2">
+    <div class="card open">
+      <div class="card-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bg">setup</span><span class="card-title">Prerequisites</span><span class="card-arrow">▾</span>
+      </div>
+      <div class="card-body"><div class="cb">
+        <ul class="blist">
+          <li class="good">Install the collection: <code>ansible-galaxy collection install google.cloud</code></li>
+          <li class="good">Install Python deps: <code>pip install requests google-auth</code></li>
+          <li class="note">Auth via service account JSON, <code>gcloud auth application-default login</code>, or workload identity</li>
+          <li class="note">File MUST end in <code>gcp_compute.yml</code> or <code>gcp_compute.yaml</code></li>
+        </ul>
+      </div></div>
+    </div>
+
+    <div class="card open">
+      <div class="card-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bg">config</span><span class="card-title">gcp_compute.yml — the inventory plugin file</span><span class="card-arrow">▾</span>
+      </div>
+      <div class="card-body"><div class="cb">
+        <div class="code-area"><span class="c">---</span>
+<span class="c"># inventories/production/gcp_compute.yml</span>
+<span class="k">plugin</span>: <span class="v">google.cloud.gcp_compute</span>
+
+<span class="k">projects</span>:
+  - <span class="v">my-gcp-project-id</span>
+
+<span class="k">zones</span>:
+  - <span class="v">europe-west2-a</span>
+  - <span class="v">us-central1-a</span>
+
+<span class="c"># Auth via service account file</span>
+<span class="k">auth_kind</span>: <span class="v">serviceaccount</span>
+<span class="k">service_account_file</span>: <span class="v">~/.gcp/service-account.json</span>
+
+<span class="c"># Filter to running instances only</span>
+<span class="k">filters</span>:
+  - <span class="v">status = RUNNING</span>
+
+<span class="c"># Group by GCP labels (equivalent to tags)</span>
+<span class="k">keyed_groups</span>:
+  - <span class="k">key</span>: <span class="v">labels.role</span>
+    <span class="k">prefix</span>: <span class="v">role</span>
+  - <span class="k">key</span>: <span class="v">labels.environment</span>
+    <span class="k">prefix</span>: <span class="v">env</span>
+  - <span class="k">key</span>: <span class="v">zone</span>
+    <span class="k">prefix</span>: <span class="v">gcp_zone</span>
+
+<span class="k">compose</span>:
+  <span class="k">ansible_host</span>: <span class="v">networkInterfaces[0].networkIP</span></div>
+        <ul class="blist" style="margin-top:8px">
+          <li class="note">GCP uses "labels" instead of "tags" — same concept, different field name in the plugin config</li>
+          <li class="warn">Never commit a path to a real service account JSON key — use a secrets manager or env var in CI</li>
+        </ul>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- PANE 3: Custom scripts -->
+  <div class="pane" id="p3">
+    <div class="card open">
+      <div class="card-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bc">concept</span><span class="card-title">Script vs plugin — what's the difference?</span><span class="card-arrow">▾</span>
+      </div>
+      <div class="card-body"><div class="cb">
+        <div class="split">
+          <div class="mini-card">
+            <div class="mini-head"><span class="badge bc">old way</span><span class="mini-title">Inventory scripts</span></div>
+            <div style="padding:10px 12px">
+              <ul class="blist">
+                <li>Executable script (any language) called by Ansible</li>
+                <li>Must respond to <code>--list</code> with JSON of all hosts</li>
+                <li>Must respond to <code>--host &lt;name&gt;</code> with host vars</li>
+                <li class="warn">Deprecated — being phased out in favor of plugins</li>
+                <li class="warn">Slower — Ansible calls the script multiple times</li>
+              </ul>
+            </div>
+          </div>
+          <div class="mini-card" style="border-color:#AFA9EC">
+            <div class="mini-head"><span class="badge bp">modern</span><span class="mini-title">Inventory plugins</span></div>
+            <div style="padding:10px 12px">
+              <ul class="blist">
+                <li>Python class implementing the InventoryPlugin API</li>
+                <li>Configured via a <code>*.yml</code> file — no CLI flags needed</li>
+                <li>Runs inside Ansible's process — faster, more integrated</li>
+                <li class="good">Supports caching, compose, keyed_groups natively</li>
+                <li class="good">The right approach for all new custom inventory sources</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="card open">
+      <div class="card-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bc">example</span><span class="card-title">Minimal custom inventory script (legacy pattern)</span><span class="card-arrow">▾</span>
+      </div>
+      <div class="card-body"><div class="cb">
+        <ul class="blist">
+          <li class="note">Useful when querying an internal CMDB, ServiceNow, or custom API with no existing plugin</li>
+          <li class="note">Must be executable: <code>chmod +x inventory.py</code></li>
+        </ul>
+        <div class="code-area"><span class="c">#!/usr/bin/env python3</span>
+<span class="c"># inventory.py — minimal custom script</span>
+import json, sys, requests
+
+<span class="k">def</span> get_hosts():
+    <span class="c"># Query your internal API / CMDB</span>
+    r = requests.get(<span class="v">'https://cmdb.internal/api/hosts'</span>)
+    hosts = r.json()
+
+    inventory = {
+        <span class="v">'webservers'</span>: {<span class="v">'hosts'</span>: [], <span class="v">'vars'</span>: {<span class="v">'nginx_port'</span>: 80}},
+        <span class="v">'databases'</span>:  {<span class="v">'hosts'</span>: []},
+        <span class="v">'_meta'</span>: {<span class="v">'hostvars'</span>: {}}
+    }
+
+    <span class="k">for</span> host <span class="k">in</span> hosts:
+        group = host[<span class="v">'role'</span>] + <span class="v">'s'</span>
+        inventory[group][<span class="v">'hosts'</span>].append(host[<span class="v">'name'</span>])
+        inventory[<span class="v">'_meta'</span>][<span class="v">'hostvars'</span>][host[<span class="v">'name'</span>]] = {
+            <span class="v">'ansible_host'</span>: host[<span class="v">'ip'</span>],
+            <span class="v">'datacenter'</span>:   host[<span class="v">'dc'</span>]
+        }
+    <span class="k">return</span> inventory
+
+<span class="k">if</span> __name__ == <span class="v">'__main__'</span>:
+    <span class="k">if</span> <span class="v">'--list'</span> <span class="k">in</span> sys.argv:
+        print(json.dumps(get_hosts()))
+    <span class="k">elif</span> <span class="v">'--host'</span> <span class="k">in</span> sys.argv:
+        print(json.dumps({}))  <span class="c"># use _meta instead</span></div>
+        <ul class="blist" style="margin-top:8px">
+          <li class="good">Always populate <code>_meta.hostvars</code> — avoids Ansible calling <code>--host</code> once per host (huge speed win for large inventories)</li>
+          <li>Usage: <code>ansible-playbook -i ./inventory.py playbooks/site.yml</code></li>
+        </ul>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- PANE 4: Tips & debugging -->
+  <div class="pane" id="p4">
+    <div class="card open">
+      <div class="card-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bk">debugging</span><span class="card-title">Essential debugging commands</span><span class="card-arrow">▾</span>
+      </div>
+      <div class="card-body"><div class="cb">
+        <div class="code-area"><span class="c"># See all hosts returned by dynamic inventory:</span>
+ansible-inventory -i inventories/production/ --list
+
+<span class="c"># See the group tree:</span>
+ansible-inventory -i inventories/production/ --graph
+
+<span class="c"># Inspect one host's resolved vars:</span>
+ansible-inventory -i inventories/production/ --host 10.0.1.10
+
+<span class="c"># Test connectivity against a dynamic group:</span>
+ansible -i inventories/production/ role_webserver -m ping
+
+<span class="c"># See what the plugin is doing (verbose):</span>
+ansible-inventory -i inventories/production/ --list -vvv</div>
+      </div></div>
+    </div>
+
+    <div class="card open">
+      <div class="card-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bk">performance</span><span class="card-title">Caching — avoid hitting the API on every run</span><span class="card-arrow">▾</span>
+      </div>
+      <div class="card-body"><div class="cb">
+        <ul class="blist">
+          <li class="note">Every playbook run queries the cloud API — slow for large fleets, may hit rate limits</li>
+          <li class="good">Enable caching in <code>ansible.cfg</code> to cache results for N seconds</li>
+        </ul>
+        <div class="code-area"><span class="c"># ansible.cfg</span>
+[inventory]
+<span class="k">cache</span>           = <span class="v">True</span>
+<span class="k">cache_plugin</span>    = <span class="v">jsonfile</span>          <span class="c"># or redis, memcached</span>
+<span class="k">cache_timeout</span>   = <span class="v">300</span>               <span class="c"># seconds (5 minutes)</span>
+<span class="k">cache_connection</span>= <span class="v">/tmp/ansible-inv-cache</span>
+
+<span class="c"># Force a cache refresh when needed:</span>
+ansible-inventory --list --refresh-cache</div>
+        <ul class="blist" style="margin-top:8px">
+          <li class="good">Use <code>jsonfile</code> for local dev, <code>redis</code> for shared CI runners where multiple jobs need the same inventory</li>
+          <li class="warn">5-minute cache is fine for most use cases — don't cache too long if your fleet scales frequently</li>
+        </ul>
+      </div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bk">pattern</span><span class="card-title">Mixing static + dynamic in one inventory directory</span><span class="card-arrow">▾</span>
+      </div>
+      <div class="card-body"><div class="cb">
+        <ul class="blist">
+          <li class="note">Ansible merges all files in the inventory directory automatically</li>
+          <li class="good">Use static files for hosts that never change (bastion, VPN gateway) alongside dynamic EC2 inventory</li>
+          <li class="good">Static <code>group_vars/</code> files apply to dynamic groups — name the directory after the tag-generated group name</li>
+        </ul>
+        <div class="code-area">inventories/production/
+  aws_ec2.yml          <span class="c"># dynamic — queries EC2 API</span>
+  hosts.yml            <span class="c"># static — bastion, fixed hosts</span>
+  group_vars/
+    all/
+      main.yml
+      vault.yml
+    role_webserver/    <span class="c"># matches EC2 tag Role=webserver</span>
+      main.yml         <span class="c"># applies to all webserver EC2 instances</span>
+    role_database/
+      main.yml</div>
+        <div class="tip">The group name <code>role_webserver</code> comes from the <code>keyed_groups</code> config: <code>prefix: role</code> + <code>key: tags.Role</code> + tag value <code>webserver</code> → <code>role_webserver</code>. Name your <code>group_vars/</code> directories to match this exactly.</div>
+      </div></div>
+    </div>
+  </div>
+
+  <footer>Generated from the Ansible expert roadmap · Chapter 2: Inventory Management</footer>
+</div>
+
+<script>
+function sw(i, btn) {
+  document.querySelectorAll('.ttab').forEach((t,j) => t.classList.toggle('active', i===j));
+  document.querySelectorAll('.pane').forEach((p,j) => p.classList.toggle('visible', i===j));
+}
+</script>
+</body>
+</html>
