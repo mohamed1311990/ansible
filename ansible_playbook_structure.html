@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ansible Playbook Structure — Plays, Tasks, Hosts & Become</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f5f0;
+    color: #1a1a18;
+    padding: 2rem 1rem;
+    line-height: 1.6;
+  }
+  .page { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: #6b6b65; margin-bottom: 1.75rem; }
+
+  .top-tabs { display: flex; gap: 0; border-bottom: 0.5px solid #ddddd5; margin-bottom: 1.25rem; overflow-x: auto; }
+  .ttab {
+    padding: 9px 16px; font-size: 13px; font-weight: 500; cursor: pointer;
+    color: #6b6b65; border-bottom: 2px solid transparent; white-space: nowrap;
+    transition: all .15s; user-select: none; margin-bottom: -0.5px;
+    background: none; border-top: none; border-left: none; border-right: none;
+    font-family: inherit;
+  }
+  .ttab.active { color: #534AB7; border-bottom-color: #534AB7; }
+  .ttab:hover:not(.active) { color: #3a3a38; }
+
+  .pane { display: none; }
+  .pane.visible { display: block; }
+
+  .split { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; margin-bottom: 12px; }
+  .panel { border: 0.5px solid #ddddd5; border-radius: 12px; overflow: hidden; background: #fff; }
+
+  .ph { padding: 10px 14px; border-bottom: 0.5px solid #ddddd5; display: flex; align-items: center; gap: 8px; }
+  .pt { font-size: 13px; font-weight: 500; color: #1a1a18; flex: 1; }
+
+  .badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+  .bp { background: #EEEDFE; color: #3C3489; }
+  .bt { background: #E1F5EE; color: #085041; }
+  .bc { background: #FAECE7; color: #712B13; }
+  .bk { background: #F1EFE8; color: #5F5E5A; }
+  .ba { background: #FAEEDA; color: #633806; }
+
+  .code-area {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px; line-height: 1.9; color: #1a1a18;
+    background: #f5f5f0; padding: 12px 14px;
+    white-space: pre; overflow-x: auto;
+  }
+  .c  { color: #9a9a92; font-style: italic; }
+  .k  { color: #3C3489; font-weight: 500; }
+  .v  { color: #0F6E56; }
+  .s  { color: #854F0B; font-weight: 600; }
+  .kw { color: #993C1D; font-weight: 600; }
+  .h  { color: #185FA5; font-weight: 600; }
+
+  .blist { list-style: none; display: flex; flex-direction: column; gap: 6px; padding: 11px 14px; }
+  .blist li { display: flex; gap: 9px; align-items: flex-start; font-size: 13px; color: #1a1a18; line-height: 1.6; }
+  .blist li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; margin-top: 7px; background: #aaa; }
+  .blist li.good::before { background: #1D9E75; }
+  .blist li.warn::before { background: #E24B4A; }
+  .blist li.note::before { background: #534AB7; }
+  .blist code {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+    background: #f0f0ea; padding: 1px 5px; border-radius: 4px; color: #1a1a18;
+  }
+
+  .tip {
+    font-size: 12px; color: #555550; padding: 7px 11px;
+    border-left: 2px solid #1D9E75; border-radius: 0 6px 6px 0;
+    background: #f0f0ea; line-height: 1.55; margin-bottom: 12px;
+  }
+  .tip.warn { border-left-color: #E24B4A; }
+
+  .card { border: 0.5px solid #ddddd5; border-radius: 12px; overflow: hidden; background: #fff; margin-bottom: 10px; }
+  .ch {
+    padding: 11px 15px; border-bottom: 0.5px solid #ddddd5;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; user-select: none; transition: background .15s;
+  }
+  .ch:hover { background: #f5f5f0; }
+  .ct { font-size: 13px; font-weight: 500; color: #1a1a18; flex: 1; }
+  .ca { font-size: 12px; color: #aaa; transition: transform .2s; }
+  .card.open .ca { transform: rotate(180deg); }
+  .cb { display: none; }
+  .card.open .cb { display: block; }
+  .cb-inner { padding: 12px 14px; }
+
+  .kw-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; padding: 12px 14px; }
+  .kw-card { border: 0.5px solid #ddddd5; border-radius: 8px; padding: 10px 12px; background: #f5f5f0; }
+  .kw-key { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; font-weight: 600; color: #3C3489; margin-bottom: 4px; }
+  .kw-desc { font-size: 12px; color: #6b6b65; line-height: 1.5; }
+  .kw-desc code {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+    background: #fff; padding: 1px 4px; border-radius: 3px; color: #1a1a18;
+  }
+
+  footer { margin-top: 2.5rem; font-size: 12px; color: #aaa; text-align: center; }
+
+  @media (max-width: 600px) {
+    .split { grid-template-columns: 1fr; }
+    .kw-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Ansible playbook structure</h1>
+  <p class="subtitle">Plays, tasks, hosts, and become — fully annotated with a keyword reference, multi-play patterns, and execution order.</p>
+
+  <div class="top-tabs">
+    <button class="ttab active" onclick="sw(0,this)">Anatomy</button>
+    <button class="ttab" onclick="sw(1,this)">Multi-play playbook</button>
+    <button class="ttab" onclick="sw(2,this)">Play keywords</button>
+    <button class="ttab" onclick="sw(3,this)">Become in depth</button>
+    <button class="ttab" onclick="sw(4,this)">Execution order</button>
+  </div>
+
+  <!-- PANE 0: Anatomy -->
+  <div class="pane visible" id="p0">
+    <div class="split">
+      <div class="panel">
+        <div class="ph"><span class="pt">A complete annotated playbook</span><span class="badge bp">site.yml</span></div>
+        <div class="code-area"><span class="c">---</span>
+<span class="c"># A playbook is a list of plays</span>
+
+<span class="c">################################</span>
+<span class="c"># PLAY 1</span>
+<span class="c">################################</span>
+- <span class="k">name</span>: <span class="v">Configure web servers</span>    <span class="c">← play name</span>
+  <span class="k">hosts</span>: <span class="v">webservers</span>              <span class="c">← target group</span>
+  <span class="k">become</span>: <span class="v">true</span>                  <span class="c">← sudo for all tasks</span>
+  <span class="k">gather_facts</span>: <span class="v">true</span>            <span class="c">← collect system info</span>
+
+  <span class="k">vars</span>:                          <span class="c">← play-level variables</span>
+    <span class="k">nginx_port</span>: <span class="v">80</span>
+
+  <span class="k">pre_tasks</span>:                     <span class="c">← run before roles</span>
+    - <span class="k">name</span>: <span class="v">Update apt cache</span>
+      <span class="k">ansible.builtin.apt</span>:
+        <span class="k">update_cache</span>: <span class="v">true</span>
+
+  <span class="k">roles</span>:                         <span class="c">← apply roles</span>
+    - <span class="v">common</span>
+    - <span class="v">nginx</span>
+
+  <span class="k">tasks</span>:                         <span class="c">← inline tasks after roles</span>
+    - <span class="k">name</span>: <span class="v">Ensure nginx is started</span>
+      <span class="k">ansible.builtin.service</span>:
+        <span class="k">name</span>: <span class="v">nginx</span>
+        <span class="k">state</span>: <span class="v">started</span>
+        <span class="k">enabled</span>: <span class="v">true</span>
+
+  <span class="k">post_tasks</span>:                    <span class="c">← run after roles + tasks</span>
+    - <span class="k">name</span>: <span class="v">Verify nginx is running</span>
+      <span class="k">ansible.builtin.uri</span>:
+        <span class="k">url</span>: <span class="v">http://localhost</span>
+
+<span class="c">################################</span>
+<span class="c"># PLAY 2 — different hosts</span>
+<span class="c">################################</span>
+- <span class="k">name</span>: <span class="v">Configure databases</span>
+  <span class="k">hosts</span>: <span class="v">databases</span>
+  <span class="k">become</span>: <span class="v">true</span>
+  <span class="k">roles</span>:
+    - <span class="v">common</span>
+    - <span class="v">postgresql</span></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">What each section does</span><span class="badge bp">key concepts</span></div>
+        <ul class="blist">
+          <li class="note">A playbook is a YAML list — each <code>-</code> at the top level is a play</li>
+          <li class="note"><code>hosts:</code> maps this play to an inventory group or pattern — the play runs against every host in that group</li>
+          <li class="note"><code>gather_facts: true</code> (default) runs the <code>setup</code> module first, collecting OS, IP, memory info as variables</li>
+          <li class="note"><code>vars:</code> defines play-scoped variables — available to all tasks and roles in this play only</li>
+          <li class="good"><code>pre_tasks</code> run before roles. <code>roles</code> run next. <code>tasks</code> run after roles. <code>post_tasks</code> run last — this order is guaranteed</li>
+          <li class="good">Multiple plays in one file share nothing — different hosts, different vars, different privilege settings</li>
+          <li class="warn">Avoid mixing <code>roles:</code> and <code>tasks:</code> in the same play — use <code>pre_tasks</code>/<code>post_tasks</code> for setup/teardown and keep task logic in roles</li>
+        </ul>
+        <div class="tip">The <code>name:</code> field on a play is not optional in practice — it appears in the output header and is the only way to identify which play is running. Always write descriptive names.</div>
+        <div class="ph" style="border-top:0.5px solid #ddddd5"><span class="pt">Task execution order within a play</span></div>
+        <ul class="blist">
+          <li>1. <code>pre_tasks</code> + their handlers</li>
+          <li>2. <code>roles</code> (in list order) + their handlers</li>
+          <li>3. <code>tasks</code> + their handlers</li>
+          <li>4. <code>post_tasks</code> + their handlers</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 1: Multi-play -->
+  <div class="pane" id="p1">
+    <div class="split">
+      <div class="panel">
+        <div class="ph"><span class="pt">Real-world multi-play deploy playbook</span><span class="badge bt">deploy.yml</span></div>
+        <div class="code-area"><span class="c">---</span>
+<span class="c"># Play 1: drain from load balancer</span>
+- <span class="k">name</span>: <span class="v">Remove hosts from load balancer</span>
+  <span class="k">hosts</span>: <span class="v">webservers</span>
+  <span class="k">serial</span>: <span class="v">1</span>                     <span class="c">← one host at a time</span>
+  <span class="k">gather_facts</span>: <span class="v">false</span>           <span class="c">← skip — saves 2-3s/host</span>
+  <span class="k">tasks</span>:
+    - <span class="k">name</span>: <span class="v">Deregister from ELB</span>
+      <span class="k">community.aws.elb_instance</span>:
+        <span class="k">instance_id</span>: <span class="v">"{{ ansible_ec2_instance_id }}"</span>
+        <span class="k">state</span>: <span class="v">absent</span>
+
+<span class="c"># Play 2: deploy new version</span>
+- <span class="k">name</span>: <span class="v">Deploy application</span>
+  <span class="k">hosts</span>: <span class="v">webservers</span>
+  <span class="k">serial</span>: <span class="v">1</span>
+  <span class="k">become</span>: <span class="v">true</span>
+  <span class="k">vars</span>:
+    <span class="k">app_version</span>: <span class="v">"{{ image_tag | default('latest') }}"</span>
+  <span class="k">roles</span>:
+    - <span class="v">deploy_app</span>
+
+<span class="c"># Play 3: smoke test before re-adding</span>
+- <span class="k">name</span>: <span class="v">Verify deployment</span>
+  <span class="k">hosts</span>: <span class="v">webservers</span>
+  <span class="k">serial</span>: <span class="v">1</span>
+  <span class="k">gather_facts</span>: <span class="v">false</span>
+  <span class="k">tasks</span>:
+    - <span class="k">name</span>: <span class="v">Check health endpoint</span>
+      <span class="k">ansible.builtin.uri</span>:
+        <span class="k">url</span>: <span class="v">http://localhost:8000/health</span>
+        <span class="k">status_code</span>: <span class="v">200</span>
+
+<span class="c"># Play 4: re-add to load balancer</span>
+- <span class="k">name</span>: <span class="v">Re-register with load balancer</span>
+  <span class="k">hosts</span>: <span class="v">webservers</span>
+  <span class="k">serial</span>: <span class="v">1</span>
+  <span class="k">gather_facts</span>: <span class="v">false</span>
+  <span class="k">tasks</span>:
+    - <span class="k">name</span>: <span class="v">Re-register in ELB</span>
+      <span class="k">community.aws.elb_instance</span>:
+        <span class="k">instance_id</span>: <span class="v">"{{ ansible_ec2_instance_id }}"</span>
+        <span class="k">state</span>: <span class="v">present</span></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Why split into multiple plays?</span><span class="badge bt">design rationale</span></div>
+        <ul class="blist">
+          <li class="good">Each play targets a different concern — drain, deploy, verify, re-add — making the playbook self-documenting</li>
+          <li class="good">If play 3 (verify) fails, play 4 (re-add) never runs — the host stays out of the load balancer automatically</li>
+          <li class="good"><code>gather_facts: false</code> on plays that don't need system info saves 2-3 seconds per host</li>
+          <li class="note"><code>serial: 1</code> means Ansible processes one host fully through ALL plays before moving to the next — true rolling deploy</li>
+          <li class="note">Plays share the inventory but nothing else — each play starts fresh with its own variable scope</li>
+        </ul>
+        <div class="tip" style="margin-bottom:12px">Use <code>import_playbook</code> to keep each logical section in its own file and compose them in <code>site.yml</code>. Cleaner than one giant multi-play file for complex workflows.</div>
+        <div class="ph" style="border-top:0.5px solid #ddddd5"><span class="pt">Targeting options for hosts:</span></div>
+        <div class="code-area" style="font-size:12px">hosts: webservers           <span class="c"># group name</span>
+hosts: web-01               <span class="c"># single host</span>
+hosts: webservers,databases <span class="c"># union</span>
+hosts: webservers:&databases <span class="c"># intersection</span>
+hosts: all:!databases       <span class="c"># exclusion</span>
+hosts: "*.example.com"      <span class="c"># wildcard</span>
+hosts: all                  <span class="c"># every host</span>
+hosts: localhost             <span class="c"># control node</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 2: Play keywords -->
+  <div class="pane" id="p2">
+    <div class="kw-grid" id="kwgrid"></div>
+  </div>
+
+  <!-- PANE 3: Become -->
+  <div class="pane" id="p3">
+    <div class="split">
+      <div class="panel">
+        <div class="ph"><span class="pt">Become — how privilege escalation works</span><span class="badge bc">become</span></div>
+        <div class="code-area"><span class="c"># Play level — all tasks run as root</span>
+- <span class="k">name</span>: <span class="v">Install packages</span>
+  <span class="k">hosts</span>: <span class="v">all</span>
+  <span class="k">become</span>: <span class="v">true</span>           <span class="c">← enable for whole play</span>
+  <span class="k">become_method</span>: <span class="v">sudo</span>   <span class="c">← default, usually omit</span>
+  <span class="k">become_user</span>: <span class="v">root</span>     <span class="c">← default, usually omit</span>
+  <span class="k">tasks</span>:
+    - <span class="k">name</span>: <span class="v">Install nginx</span>
+      <span class="k">ansible.builtin.package</span>:
+        <span class="k">name</span>: <span class="v">nginx</span>
+        <span class="k">state</span>: <span class="v">present</span>
+
+<span class="c"># Task level — only this task escalates</span>
+- <span class="k">name</span>: <span class="v">Mixed privilege play</span>
+  <span class="k">hosts</span>: <span class="v">all</span>
+  <span class="k">become</span>: <span class="v">false</span>          <span class="c">← no sudo by default</span>
+  <span class="k">tasks</span>:
+    - <span class="k">name</span>: <span class="v">Read a config</span>  <span class="c">← runs as ansible_user</span>
+      <span class="k">ansible.builtin.slurp</span>:
+        <span class="k">src</span>: <span class="v">/home/ubuntu/.bashrc</span>
+
+    - <span class="k">name</span>: <span class="v">Install a package</span>
+      <span class="k">ansible.builtin.package</span>:
+        <span class="k">name</span>: <span class="v">htop</span>
+      <span class="k">become</span>: <span class="v">true</span>        <span class="c">← only this task uses sudo</span>
+
+    - <span class="k">name</span>: <span class="v">Write app config</span>
+      <span class="k">ansible.builtin.template</span>:
+        <span class="k">src</span>: <span class="v">app.conf.j2</span>
+        <span class="k">dest</span>: <span class="v">/etc/app/app.conf</span>
+      <span class="k">become</span>: <span class="v">true</span>
+      <span class="k">become_user</span>: <span class="v">appuser</span> <span class="c">← become a specific user</span></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Sudoers config for Ansible</span><span class="badge bc">system setup</span></div>
+        <ul class="blist">
+          <li class="note">Ansible connects as <code>ansible_user</code> (e.g. <code>ubuntu</code>) then runs <code>sudo</code> to become root</li>
+          <li class="note">Target machine must have <code>sudo</code> installed and the Ansible user must have sudo rights</li>
+          <li class="good">For automation, configure <code>NOPASSWD</code> — otherwise Ansible hangs waiting for a password prompt</li>
+        </ul>
+        <div class="code-area" style="margin:0 14px 12px"><span class="c"># /etc/sudoers.d/ansible</span>
+
+<span class="c"># Allow ubuntu to sudo anything without password:</span>
+ubuntu ALL=(ALL) NOPASSWD: ALL
+
+<span class="c"># More restrictive — only specific commands:</span>
+ubuntu ALL=(ALL) NOPASSWD: /usr/bin/apt, \
+  /bin/systemctl, /usr/bin/pip3</div>
+        <div class="ph" style="border-top:0.5px solid #ddddd5"><span class="pt">Become method options</span></div>
+        <ul class="blist">
+          <li><code>sudo</code> — default, works everywhere</li>
+          <li><code>su</code> — for systems without sudo (rare)</li>
+          <li><code>pbrun</code> — PowerBroker (enterprise)</li>
+          <li><code>pfexec</code> — Solaris / OpenBSD</li>
+          <li><code>doas</code> — OpenBSD alternative to sudo</li>
+          <li><code>dzdo</code> — CyberArk (enterprise PAM)</li>
+        </ul>
+        <div class="tip" style="margin:8px 14px 12px">Set <code>become_method</code> and <code>become_user</code> in <code>ansible.cfg</code> rather than repeating them in every playbook. Only override per-play when you need something different.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 4: Execution order -->
+  <div class="pane" id="p4">
+    <div class="card open">
+      <div class="ch" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bk">order</span><span class="ct">How Ansible processes a play step by step</span><span class="ca">▾</span>
+      </div>
+      <div class="cb"><div class="cb-inner">
+        <div class="code-area"><span class="c"># Step 1: Load inventory + resolve groups</span>
+ansible-playbook -i inventories/production site.yml
+
+<span class="c"># Step 2: Parse all plays, build execution plan</span>
+ansible-playbook --list-tasks site.yml   <span class="c"># dry run preview</span>
+
+<span class="c"># Step 3: For each play:</span>
+<span class="c">#   a. Determine target hosts from hosts: directive</span>
+<span class="c">#   b. Run gather_facts (setup module) on all hosts in parallel</span>
+<span class="c">#   c. Execute pre_tasks (in order, across all hosts)</span>
+<span class="c">#   d. Execute roles (in list order)</span>
+<span class="c">#      - role tasks run across all hosts</span>
+<span class="c">#      - role handlers flush after each role</span>
+<span class="c">#   e. Execute tasks (in order)</span>
+<span class="c">#   f. Flush all pending handlers</span>
+<span class="c">#   g. Execute post_tasks</span>
+<span class="c">#   h. Flush handlers again</span>
+
+<span class="c"># Step 4: Move to next play, repeat</span>
+
+<span class="c"># Useful flags for understanding execution:</span>
+ansible-playbook site.yml --list-tasks   <span class="c"># show all tasks</span>
+ansible-playbook site.yml --list-hosts   <span class="c"># show targeted hosts</span>
+ansible-playbook site.yml --check        <span class="c"># dry run</span>
+ansible-playbook site.yml --step         <span class="c"># confirm each task</span>
+ansible-playbook site.yml -v             <span class="c"># verbose output</span>
+ansible-playbook site.yml -vvv           <span class="c"># connection debug</span></div>
+      </div></div>
+    </div>
+
+    <div class="card open">
+      <div class="ch" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bk">parallelism</span><span class="ct">How forks and serial interact</span><span class="ca">▾</span>
+      </div>
+      <div class="cb"><div class="cb-inner">
+        <ul class="blist">
+          <li class="note"><code>forks</code> (in ansible.cfg) controls how many hosts run one task simultaneously — default 5, set to 20+ for cloud</li>
+          <li class="note"><code>serial</code> (in the play) controls how many hosts go through the entire play at once — used for rolling deploys</li>
+          <li class="good">Without <code>serial</code>: Ansible runs each task across ALL hosts in parallel (up to forks limit), then moves to next task</li>
+          <li class="good">With <code>serial: 1</code>: host 1 completes all tasks → host 2 starts — true rolling deploy, zero downtime</li>
+          <li>With <code>serial: "25%"</code>: processes 25% of hosts at a time — balance between speed and safety</li>
+        </ul>
+        <div class="code-area" style="margin-top:10px"><span class="c"># serial accepts: integer, percentage, or list</span>
+<span class="k">serial</span>: <span class="v">1</span>           <span class="c"># one host at a time</span>
+<span class="k">serial</span>: <span class="v">3</span>           <span class="c"># three hosts at a time</span>
+<span class="k">serial</span>: <span class="v">"25%"</span>       <span class="c"># 25% of total hosts</span>
+<span class="k">serial</span>: [<span class="v">1</span>, <span class="v">3</span>, <span class="v">10</span>]  <span class="c"># canary: 1 first, then 3, then rest</span>
+
+<span class="c"># Canary pattern — safest for production deploys:</span>
+<span class="c"># Deploy to 1 host first, verify, then 3, then rest</span></div>
+      </div></div>
+    </div>
+  </div>
+
+  <footer>Generated from the Ansible expert roadmap · Chapter 3: Playbooks &amp; Tasks</footer>
+</div>
+
+<script>
+function sw(i, btn) {
+  document.querySelectorAll('.ttab').forEach((t,j) => t.classList.toggle('active', i===j));
+  document.querySelectorAll('.pane').forEach((p,j) => p.classList.toggle('visible', i===j));
+}
+
+const keywords = [
+  { k: 'name', desc: 'Human-readable label for the play. Appears in output. Required in practice.', ex: 'name: Configure web servers' },
+  { k: 'hosts', desc: 'Which inventory hosts/groups this play targets. Accepts patterns, wildcards, and operators.', ex: 'hosts: webservers:!staging' },
+  { k: 'become', desc: 'Enable privilege escalation (sudo) for the play. Can be overridden per task.', ex: 'become: true' },
+  { k: 'become_user', desc: 'User to escalate to. Defaults to root.', ex: 'become_user: appuser' },
+  { k: 'become_method', desc: 'Escalation mechanism. Defaults to sudo.', ex: 'become_method: sudo' },
+  { k: 'gather_facts', desc: 'Run the setup module to collect system facts. Default true. Set false to save 2-3s/host.', ex: 'gather_facts: false' },
+  { k: 'vars', desc: 'Play-scoped variable definitions. Override inventory vars, overridden by extra-vars.', ex: 'vars:\n  app_port: 8000' },
+  { k: 'vars_files', desc: 'Load variables from external YAML files into the play scope.', ex: "vars_files:\n  - vars/secrets.yml" },
+  { k: 'serial', desc: 'Rolling deploy control. How many hosts process the play at once.', ex: "serial: '25%'" },
+  { k: 'max_fail_percentage', desc: 'Stop the play if more than N% of hosts fail. Default: stop on any failure.', ex: 'max_fail_percentage: 10' },
+  { k: 'any_errors_fatal', desc: 'Immediately stop all hosts in the play if any host fails a task.', ex: 'any_errors_fatal: true' },
+  { k: 'ignore_errors', desc: 'Continue the play even if tasks fail. Applied per-task usually.', ex: 'ignore_errors: true' },
+  { k: 'environment', desc: 'Set environment variables for all tasks in the play.', ex: "environment:\n  http_proxy: http://proxy:3128" },
+  { k: 'run_once', desc: 'Run the task on a single host only, even when targeting multiple hosts.', ex: 'run_once: true' },
+  { k: 'no_log', desc: 'Suppress task output — prevents secrets from appearing in logs.', ex: 'no_log: true' },
+  { k: 'tags', desc: 'Label plays or tasks. Run only tagged tasks with --tags flag.', ex: "tags: [deploy, web]" },
+];
+
+const grid = document.getElementById('kwgrid');
+keywords.forEach(kw => {
+  const div = document.createElement('div');
+  div.className = 'kw-card';
+  div.innerHTML = `<div class="kw-key">${kw.k}:</div><div class="kw-desc">${kw.desc}<br><code>${kw.ex}</code></div>`;
+  grid.appendChild(div);
+});
+</script>
+</body>
+</html>
