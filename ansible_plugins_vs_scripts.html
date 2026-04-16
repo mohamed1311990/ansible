@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ansible Inventory Plugins vs Scripts</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f5f0;
+    color: #1a1a18;
+    padding: 2rem 1rem;
+    line-height: 1.6;
+  }
+  .page { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: #6b6b65; margin-bottom: 1.75rem; }
+
+  .top-tabs { display: flex; gap: 0; border-bottom: 0.5px solid #ddddd5; margin-bottom: 1.25rem; overflow-x: auto; }
+  .ttab {
+    padding: 9px 16px; font-size: 13px; font-weight: 500; cursor: pointer;
+    color: #6b6b65; border-bottom: 2px solid transparent; white-space: nowrap;
+    transition: all .15s; user-select: none; margin-bottom: -0.5px;
+    background: none; border-top: none; border-left: none; border-right: none;
+    font-family: inherit;
+  }
+  .ttab.active { color: #534AB7; border-bottom-color: #534AB7; }
+  .ttab:hover:not(.active) { color: #3a3a38; }
+
+  .pane { display: none; }
+  .pane.visible { display: block; }
+
+  .split { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; margin-bottom: 12px; }
+  .panel { border: 0.5px solid #ddddd5; border-radius: 12px; overflow: hidden; background: #fff; }
+  .panel.featured { border-color: #AFA9EC; }
+
+  .ph { padding: 10px 14px; border-bottom: 0.5px solid #ddddd5; display: flex; align-items: center; gap: 8px; }
+  .pt { font-size: 13px; font-weight: 500; color: #1a1a18; flex: 1; }
+
+  .badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+  .bp { background: #EEEDFE; color: #3C3489; }
+  .bt { background: #E1F5EE; color: #085041; }
+  .bc { background: #FAECE7; color: #712B13; }
+  .bk { background: #F1EFE8; color: #5F5E5A; }
+  .ba { background: #FAEEDA; color: #633806; }
+
+  .code-area {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px; line-height: 1.85; color: #1a1a18;
+    background: #f5f5f0; padding: 11px 13px;
+    white-space: pre; overflow-x: auto;
+  }
+  .c   { color: #9a9a92; font-style: italic; }
+  .k   { color: #3C3489; }
+  .v   { color: #0F6E56; }
+  .kw  { color: #993C1D; font-weight: 600; }
+  .fn  { color: #185FA5; font-weight: 600; }
+
+  .blist { list-style: none; display: flex; flex-direction: column; gap: 6px; padding: 11px 14px; }
+  .blist li { display: flex; gap: 9px; align-items: flex-start; font-size: 13px; color: #1a1a18; line-height: 1.6; }
+  .blist li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; margin-top: 7px; background: #aaa; }
+  .blist li.good::before { background: #1D9E75; }
+  .blist li.warn::before { background: #E24B4A; }
+  .blist li.note::before { background: #534AB7; }
+  .blist code {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+    background: #f0f0ea; padding: 1px 5px; border-radius: 4px; color: #1a1a18;
+  }
+
+  .tip {
+    font-size: 12px; color: #555550; padding: 7px 11px;
+    border-left: 2px solid #1D9E75; border-radius: 0 6px 6px 0;
+    background: #f0f0ea; line-height: 1.55; margin: 0 0 12px;
+  }
+  .tip.warn { border-left-color: #E24B4A; }
+
+  .card { border: 0.5px solid #ddddd5; border-radius: 12px; overflow: hidden; background: #fff; margin-bottom: 10px; }
+  .ch {
+    padding: 11px 15px; border-bottom: 0.5px solid #ddddd5;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; user-select: none; transition: background .15s;
+  }
+  .ch:hover { background: #f5f5f0; }
+  .ct { font-size: 13px; font-weight: 500; color: #1a1a18; flex: 1; }
+  .ca { font-size: 12px; color: #aaa; transition: transform .2s; }
+  .card.open .ca { transform: rotate(180deg); }
+  .cb { display: none; }
+  .card.open .cb { display: block; }
+  .cb-inner { padding: 12px 14px; }
+
+  footer { margin-top: 2.5rem; font-size: 12px; color: #aaa; text-align: center; }
+
+  @media (max-width: 600px) {
+    .split { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Ansible inventory plugins vs scripts</h1>
+  <p class="subtitle">Architecture comparison, annotated code, step-by-step plugin guide, and a decision framework for when to use each.</p>
+
+  <div class="top-tabs">
+    <button class="ttab active" onclick="sw(0,this)">Architecture comparison</button>
+    <button class="ttab" onclick="sw(1,this)">Script internals</button>
+    <button class="ttab" onclick="sw(2,this)">Plugin internals</button>
+    <button class="ttab" onclick="sw(3,this)">Write your own plugin</button>
+    <button class="ttab" onclick="sw(4,this)">When to use each</button>
+  </div>
+
+  <!-- PANE 0: Architecture comparison -->
+  <div class="pane visible" id="p0">
+    <div class="split">
+      <div class="panel">
+        <div class="ph"><span class="pt">Inventory script</span><span class="badge bc">legacy</span></div>
+        <ul class="blist">
+          <li class="warn">Ansible forks a child process and calls the script via the OS</li>
+          <li class="warn">Called at least twice: once with <code>--list</code>, once with <code>--host &lt;name&gt;</code> per host unless <code>_meta</code> is used</li>
+          <li class="warn">Any language (Python, bash, Ruby) — but no access to Ansible internals</li>
+          <li class="warn">No native caching — you must implement it yourself</li>
+          <li class="warn">No <code>keyed_groups</code>, <code>compose</code>, or <code>filters</code> — all grouping logic hand-built</li>
+          <li class="warn">Marked as deprecated — no new features being added</li>
+          <li>Still works — maintained for backward compatibility only</li>
+        </ul>
+        <div class="code-area"><span class="c"># How Ansible calls a script:</span>
+./inventory.py --list
+<span class="c"># → JSON blob of all groups + hosts</span>
+
+./inventory.py --host web-01
+<span class="c"># → JSON of host vars (one call per host!)</span>
+<span class="c"># Unless _meta.hostvars is in --list output</span></div>
+      </div>
+      <div class="panel featured">
+        <div class="ph"><span class="pt">Inventory plugin</span><span class="badge bp">modern</span></div>
+        <ul class="blist">
+          <li class="good">Runs as a Python class inside Ansible's own process — no subprocess overhead</li>
+          <li class="good">Called once — the plugin populates the inventory object directly in memory</li>
+          <li class="good">Full access to Ansible internals: display, templar, config system</li>
+          <li class="good">Native caching built into the plugin base class — one line to enable</li>
+          <li class="good">Native <code>keyed_groups</code>, <code>compose</code>, <code>filters</code> — configured in YAML, no code needed</li>
+          <li class="good">All active development is here — all cloud plugins are plugins</li>
+          <li class="note">Requires Python — cannot be written in bash or Ruby</li>
+        </ul>
+        <div class="code-area"><span class="c"># How Ansible loads a plugin:</span>
+<span class="c"># 1. Reads aws_ec2.yml</span>
+<span class="c"># 2. Matches filename → selects plugin class</span>
+<span class="c"># 3. Calls plugin.parse(inventory, loader, path)</span>
+<span class="c"># 4. Plugin populates inventory in-process</span>
+<span class="c"># No subprocess. One call. Done.</span></div>
+      </div>
+    </div>
+    <div class="tip">The performance difference matters at scale. A script with 200 hosts and no <code>_meta</code> makes 201 subprocess calls. A plugin makes one in-process call regardless of fleet size.</div>
+  </div>
+
+  <!-- PANE 1: Script internals -->
+  <div class="pane" id="p1">
+    <div class="split">
+      <div class="panel">
+        <div class="ph"><span class="pt">Required JSON contract — --list</span><span class="badge bc">script</span></div>
+        <div class="code-area"><span class="c"># ./inventory.py --list must return:</span>
+{
+  <span class="k">"webservers"</span>: {
+    <span class="k">"hosts"</span>: [<span class="v">"web-01"</span>, <span class="v">"web-02"</span>],
+    <span class="k">"vars"</span>: {
+      <span class="k">"nginx_port"</span>: <span class="v">80</span>
+    }
+  },
+  <span class="k">"databases"</span>: {
+    <span class="k">"hosts"</span>: [<span class="v">"db-01"</span>],
+    <span class="k">"vars"</span>: {}
+  },
+  <span class="k">"_meta"</span>: {           <span class="c">← critical optimisation</span>
+    <span class="k">"hostvars"</span>: {
+      <span class="k">"web-01"</span>: {
+        <span class="k">"ansible_host"</span>: <span class="v">"10.0.1.10"</span>,
+        <span class="k">"ec2_id"</span>: <span class="v">"i-abc123"</span>
+      },
+      <span class="k">"web-02"</span>: {
+        <span class="k">"ansible_host"</span>: <span class="v">"10.0.1.11"</span>
+      },
+      <span class="k">"db-01"</span>: {
+        <span class="k">"ansible_host"</span>: <span class="v">"10.0.2.10"</span>
+      }
+    }
+  }
+}</div>
+        <ul class="blist">
+          <li class="note">Including <code>_meta.hostvars</code> tells Ansible all host vars are here — skips <code>--host &lt;name&gt;</code> calls entirely</li>
+          <li class="warn">Omit <code>_meta</code> and Ansible calls <code>--host</code> once per host — N+1 subprocess calls</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Required JSON contract — --host</span><span class="badge bc">script</span></div>
+        <div class="code-area"><span class="c"># ./inventory.py --host web-01 must return:</span>
+{
+  <span class="k">"ansible_host"</span>: <span class="v">"10.0.1.10"</span>,
+  <span class="k">"ansible_user"</span>: <span class="v">"ubuntu"</span>,
+  <span class="k">"ec2_region"</span>: <span class="v">"eu-west-2"</span>
+}
+
+<span class="c"># If _meta was in --list, return empty dict:</span>
+{}
+
+<span class="c"># Minimal working script structure:</span>
+<span class="kw">import</span> json, sys
+
+<span class="kw">if</span> <span class="v">'--list'</span> <span class="kw">in</span> sys.argv:
+    print(json.dumps(build_inventory()))
+<span class="kw">elif</span> <span class="v">'--host'</span> <span class="kw">in</span> sys.argv:
+    <span class="c"># return empty — _meta handles it</span>
+    print(json.dumps({}))
+<span class="kw">else</span>:
+    print(json.dumps({}))</div>
+        <ul class="blist">
+          <li class="note">Both <code>--list</code> and <code>--host</code> must be handled or Ansible throws an error</li>
+          <li>The script must exit with code 0 on success, non-zero on failure</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 2: Plugin internals -->
+  <div class="pane" id="p2">
+    <div class="split">
+      <div class="panel featured">
+        <div class="ph"><span class="pt">Plugin class structure</span><span class="badge bp">plugin</span></div>
+        <div class="code-area"><span class="c"># inventory_plugins/mycompany.py</span>
+<span class="kw">from</span> ansible.plugins.inventory <span class="kw">import</span> \
+    BaseInventoryPlugin, Constructable, Cacheable
+
+<span class="c"># BaseInventoryPlugin — core plugin machinery</span>
+<span class="c"># Constructable      — adds keyed_groups, compose</span>
+<span class="c"># Cacheable          — adds built-in cache support</span>
+
+<span class="kw">class</span> <span class="fn">InventoryModule</span>(
+    BaseInventoryPlugin, Constructable, Cacheable
+):
+    <span class="c"># Must match the filename (without .py)</span>
+    NAME = <span class="v">'mycompany'</span>
+
+    <span class="kw">def</span> <span class="fn">verify_file</span>(self, path):
+        <span class="c"># Return True only for files this plugin handles</span>
+        valid = <span class="kw">False</span>
+        <span class="kw">if</span> super().verify_file(path):
+            <span class="kw">if</span> path.endswith((
+                <span class="v">'mycompany.yml'</span>,
+                <span class="v">'mycompany.yaml'</span>
+            )):
+                valid = <span class="kw">True</span>
+        <span class="kw">return</span> valid
+
+    <span class="kw">def</span> <span class="fn">parse</span>(self, inventory, loader, path, cache=<span class="kw">True</span>):
+        <span class="c"># Main entry point — called once by Ansible</span>
+        super().parse(inventory, loader, path)
+        self._read_config_data(path)
+
+        <span class="c"># Use cache if available and not expired</span>
+        cache_key = self.get_cache_key(path)
+        <span class="kw">if</span> cache <span class="kw">and</span> cache_key <span class="kw">in</span> self._cache:
+            data = self._cache[cache_key]
+        <span class="kw">else</span>:
+            data = self._fetch_from_api()
+            self._cache[cache_key] = data
+
+        self._populate(data)</div>
+      </div>
+      <div class="panel featured">
+        <div class="ph"><span class="pt">Populating inventory + native features</span><span class="badge bp">plugin</span></div>
+        <div class="code-area">    <span class="kw">def</span> <span class="fn">_populate</span>(self, data):
+        <span class="kw">for</span> host <span class="kw">in</span> data[<span class="v">'hosts'</span>]:
+            name = host[<span class="v">'name'</span>]
+
+            <span class="c"># Add host to inventory</span>
+            self.inventory.add_host(name)
+
+            <span class="c"># Set host variables</span>
+            self.inventory.set_variable(
+                name, <span class="v">'ansible_host'</span>, host[<span class="v">'ip'</span>]
+            )
+            self.inventory.set_variable(
+                name, <span class="v">'datacenter'</span>, host[<span class="v">'dc'</span>]
+            )
+            self.inventory.set_variable(
+                name, <span class="v">'role'</span>, host[<span class="v">'role'</span>]
+            )
+
+            <span class="c"># Add to a manual group</span>
+            group = <span class="v">'role_'</span> + host[<span class="v">'role'</span>]
+            self.inventory.add_group(group)
+            self.inventory.add_child(group, name)
+
+            <span class="c"># Apply keyed_groups from YAML config — free!</span>
+            self._add_host_to_keyed_groups(
+                self.get_option(<span class="v">'keyed_groups'</span>),
+                self.inventory.get_host(name).get_vars(),
+                name, strict=<span class="kw">False</span>
+            )
+            <span class="c"># Apply compose from YAML config — free!</span>
+            self._set_composite_vars(
+                self.get_option(<span class="v">'compose'</span>),
+                self.inventory.get_host(name).get_vars(),
+                name, strict=<span class="kw">False</span>
+            )</div>
+        <ul class="blist">
+          <li class="good">Calling <code>_add_host_to_keyed_groups</code> gives your plugin the same <code>keyed_groups:</code> YAML config as <code>aws_ec2</code> — for free</li>
+          <li class="good">Calling <code>_set_composite_vars</code> gives your plugin <code>compose:</code> support — also free</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 3: Write your own plugin -->
+  <div class="pane" id="p3">
+    <div class="card open">
+      <div class="ch" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bp">step 1</span><span class="ct">Project layout for a custom plugin</span><span class="ca">▾</span>
+      </div>
+      <div class="cb"><div class="cb-inner">
+        <div class="code-area">ansible-project/
+  inventory_plugins/
+    mycompany.py          <span class="c">← your plugin file</span>
+  inventories/
+    production/
+      mycompany.yml       <span class="c">← config file (triggers the plugin)</span>
+      group_vars/
+        all/main.yml
+  ansible.cfg</div>
+        <ul class="blist">
+          <li class="note">Point Ansible to your local plugin directory in <code>ansible.cfg</code></li>
+          <li class="note">The config file name must match the plugin's <code>NAME</code> attribute</li>
+        </ul>
+      </div></div>
+    </div>
+
+    <div class="card open">
+      <div class="ch" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bp">step 2</span><span class="ct">Register the plugin in ansible.cfg</span><span class="ca">▾</span>
+      </div>
+      <div class="cb"><div class="cb-inner">
+        <div class="code-area"><span class="c"># ansible.cfg</span>
+[defaults]
+<span class="c"># Add your local plugin directory to the search path</span>
+<span class="k">inventory_plugins</span> = ./inventory_plugins
+
+<span class="c"># Enable your plugin by name</span>
+[inventory]
+<span class="k">enable_plugins</span> = mycompany, host_list, yaml, ini, auto</div>
+        <ul class="blist">
+          <li class="warn">Always include <code>host_list, yaml, ini, auto</code> alongside your plugin — omitting them breaks static inventory files</li>
+        </ul>
+      </div></div>
+    </div>
+
+    <div class="card open">
+      <div class="ch" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bp">step 3</span><span class="ct">DOCUMENTATION block — required for ansible-doc</span><span class="ca">▾</span>
+      </div>
+      <div class="cb"><div class="cb-inner">
+        <div class="code-area"><span class="c"># mycompany.py — at the top of the file</span>
+DOCUMENTATION = <span class="v">r'''
+    name: mycompany
+    short_description: Pulls inventory from internal CMDB API
+    description:
+      - Connects to CMDB and returns hosts grouped by role.
+    options:
+      api_url:
+        description: Base URL of the CMDB API
+        required: true
+        type: str
+      keyed_groups:
+        description: Add hosts to groups based on variable values
+      compose:
+        description: Create vars from Jinja2 expressions
+    notes:
+      - Set CMDB_TOKEN env var for authentication.
+'''</span>
+
+EXAMPLES = <span class="v">r'''
+# inventories/production/mycompany.yml
+plugin: mycompany
+api_url: https://cmdb.internal/api
+keyed_groups:
+  - key: role
+    prefix: role
+compose:
+  ansible_host: ip_address
+'''</span></div>
+        <ul class="blist">
+          <li class="note"><code>DOCUMENTATION</code> is required — without it <code>ansible-doc -t inventory mycompany</code> fails</li>
+          <li class="good">Options declared here are automatically validated against the config YAML — clear errors on misconfiguration</li>
+        </ul>
+      </div></div>
+    </div>
+
+    <div class="card">
+      <div class="ch" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge bp">step 4</span><span class="ct">Test and validate</span><span class="ca">▾</span>
+      </div>
+      <div class="cb"><div class="cb-inner">
+        <div class="code-area"><span class="c"># Verify the plugin is discoverable:</span>
+ansible-doc -t inventory mycompany
+
+<span class="c"># Parse inventory with your plugin:</span>
+ansible-inventory -i inventories/production/ --list
+
+<span class="c"># See the group tree:</span>
+ansible-inventory -i inventories/production/ --graph
+
+<span class="c"># Enable debug logging to trace plugin execution:</span>
+ansible-inventory -i inventories/production/ --list -vvv
+
+<span class="c"># Test connectivity against a group:</span>
+ansible -i inventories/production/ role_webserver -m ping</div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- PANE 4: When to use each -->
+  <div class="pane" id="p4">
+    <div class="split">
+      <div class="panel">
+        <div class="ph"><span class="pt">Use a script when...</span><span class="badge bc">script</span></div>
+        <ul class="blist">
+          <li>You're maintaining an existing script that works and a rewrite isn't justified</li>
+          <li>You need inventory logic in a language that isn't Python (rare but valid)</li>
+          <li>The query is a one-liner that would be over-engineered as a full plugin class</li>
+          <li class="warn">You have a script from before Ansible 2.4 that predates plugins</li>
+          <li class="warn">Never choose a script for new development — accumulates tech debt immediately</li>
+        </ul>
+      </div>
+      <div class="panel featured">
+        <div class="ph"><span class="pt">Use a plugin when...</span><span class="badge bp">default choice</span></div>
+        <ul class="blist">
+          <li class="good">You're building anything new — plugins are the only right answer for new custom inventory sources</li>
+          <li class="good">You want <code>keyed_groups</code>, <code>compose</code>, or caching without writing it yourself</li>
+          <li class="good">You want <code>ansible-doc</code> support and self-documenting options</li>
+          <li class="good">Performance matters — in-process beats subprocess at any scale</li>
+          <li class="good">You want Ansible's config validation to catch misconfigured options early</li>
+          <li class="note">Requires Python — the only real constraint</li>
+        </ul>
+      </div>
+    </div>
+    <div class="tip">If you're migrating an existing script to a plugin: the <code>_populate()</code> method is where your script's logic goes. The rest of the plugin class is boilerplate. A typical migration takes an afternoon and immediately gains caching and <code>keyed_groups</code> support.</div>
+  </div>
+
+  <footer>Generated from the Ansible expert roadmap · Chapter 2: Inventory Management</footer>
+</div>
+
+<script>
+function sw(i, btn) {
+  document.querySelectorAll('.ttab').forEach((t,j) => t.classList.toggle('active', i===j));
+  document.querySelectorAll('.pane').forEach((p,j) => p.classList.toggle('visible', i===j));
+}
+</script>
+</body>
+</html>
