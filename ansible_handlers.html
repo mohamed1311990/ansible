@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ansible Handlers — notify, listen, timing & advanced patterns</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f5f0;
+    color: #1a1a18;
+    padding: 2rem 1rem;
+    line-height: 1.6;
+  }
+  .page { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: #6b6b65; margin-bottom: 1.75rem; }
+
+  .top-tabs { display: flex; gap: 0; border-bottom: 0.5px solid #ddddd5; margin-bottom: 1.25rem; overflow-x: auto; }
+  .ttab {
+    padding: 9px 16px; font-size: 13px; font-weight: 500; cursor: pointer;
+    color: #6b6b65; border-bottom: 2px solid transparent; white-space: nowrap;
+    transition: all .15s; user-select: none; margin-bottom: -0.5px;
+    background: none; border-top: none; border-left: none; border-right: none;
+    font-family: inherit;
+  }
+  .ttab.active { color: #534AB7; border-bottom-color: #534AB7; }
+  .ttab:hover:not(.active) { color: #3a3a38; }
+
+  .pane { display: none; }
+  .pane.visible { display: block; }
+
+  .split { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; margin-bottom: 12px; }
+  .panel { border: 0.5px solid #ddddd5; border-radius: 12px; overflow: hidden; background: #fff; }
+
+  .ph { padding: 10px 14px; border-bottom: 0.5px solid #ddddd5; display: flex; align-items: center; gap: 8px; }
+  .pt { font-size: 13px; font-weight: 500; color: #1a1a18; flex: 1; }
+
+  .badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+  .bp { background: #EEEDFE; color: #3C3489; }
+  .bt { background: #E1F5EE; color: #085041; }
+  .bc { background: #FAECE7; color: #712B13; }
+  .ba { background: #FAEEDA; color: #633806; }
+  .bk { background: #F1EFE8; color: #5F5E5A; }
+
+  .code-area {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px; line-height: 1.9; color: #1a1a18;
+    background: #f5f5f0; padding: 12px 14px;
+    white-space: pre; overflow-x: auto;
+  }
+  .c  { color: #9a9a92; font-style: italic; }
+  .k  { color: #3C3489; font-weight: 500; }
+  .v  { color: #0F6E56; }
+  .kw { color: #993C1D; font-weight: 600; }
+
+  .blist { list-style: none; display: flex; flex-direction: column; gap: 6px; padding: 11px 14px; }
+  .blist li { display: flex; gap: 9px; align-items: flex-start; font-size: 13px; color: #1a1a18; line-height: 1.6; }
+  .blist li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; margin-top: 7px; background: #aaa; }
+  .blist li.good::before { background: #1D9E75; }
+  .blist li.warn::before { background: #E24B4A; }
+  .blist li.note::before { background: #534AB7; }
+  .blist code {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+    background: #f0f0ea; padding: 1px 5px; border-radius: 4px; color: #1a1a18;
+  }
+
+  .tip {
+    font-size: 12px; color: #555550; padding: 7px 11px;
+    border-left: 2px solid #1D9E75; border-radius: 0 6px 6px 0;
+    background: #f0f0ea; line-height: 1.55; margin: 0 14px 12px;
+  }
+  .tip.warn { border-left-color: #E24B4A; }
+
+  .card { border: 0.5px solid #ddddd5; border-radius: 12px; overflow: hidden; background: #fff; margin-bottom: 10px; }
+  .ch {
+    padding: 11px 15px; border-bottom: 0.5px solid #ddddd5;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; user-select: none; transition: background .15s;
+  }
+  .ch:hover { background: #f5f5f0; }
+  .ct { font-size: 13px; font-weight: 500; color: #1a1a18; flex: 1; }
+  .ca { font-size: 12px; color: #aaa; transition: transform .2s; }
+  .card.open .ca { transform: rotate(180deg); }
+  .cb { display: none; }
+  .card.open .cb { display: block; }
+  .cb-p { padding: 12px 14px; }
+
+  footer { margin-top: 2.5rem; font-size: 12px; color: #aaa; text-align: center; }
+
+  @media (max-width: 600px) {
+    .split { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Ansible handlers</h1>
+  <p class="subtitle">notify, listen, timing, advanced patterns, and common gotchas — with annotated examples for every scenario.</p>
+
+  <div class="top-tabs">
+    <button class="ttab active" onclick="sw(0,this)">How handlers work</button>
+    <button class="ttab" onclick="sw(1,this)">notify vs listen</button>
+    <button class="ttab" onclick="sw(2,this)">Handler timing</button>
+    <button class="ttab" onclick="sw(3,this)">Advanced patterns</button>
+    <button class="ttab" onclick="sw(4,this)">Common gotchas</button>
+  </div>
+
+  <!-- PANE 0: How handlers work -->
+  <div class="pane visible" id="p0">
+    <div class="split">
+      <div class="panel">
+        <div class="ph"><span class="pt">Basic handler anatomy</span><span class="badge bp">nginx role</span></div>
+        <div class="code-area"><span class="c"># roles/nginx/tasks/main.yml</span>
+<span class="c">---</span>
+- <span class="k">name</span>: <span class="v">Install nginx</span>
+  <span class="k">ansible.builtin.package</span>:
+    <span class="k">name</span>: <span class="v">nginx</span>
+    <span class="k">state</span>: <span class="v">present</span>
+
+- <span class="k">name</span>: <span class="v">Deploy nginx.conf</span>
+  <span class="k">ansible.builtin.template</span>:
+    <span class="k">src</span>: <span class="v">nginx.conf.j2</span>
+    <span class="k">dest</span>: <span class="v">/etc/nginx/nginx.conf</span>
+    <span class="k">mode</span>: <span class="v">"0644"</span>
+  <span class="k">notify</span>: <span class="v">Reload nginx</span>     <span class="c">← queues the handler</span>
+
+- <span class="k">name</span>: <span class="v">Deploy site config</span>
+  <span class="k">ansible.builtin.template</span>:
+    <span class="k">src</span>: <span class="v">site.conf.j2</span>
+    <span class="k">dest</span>: <span class="v">/etc/nginx/sites-available/app.conf</span>
+  <span class="k">notify</span>: <span class="v">Reload nginx</span>     <span class="c">← queues the SAME handler again</span>
+                              <span class="c">← but it still only runs ONCE</span>
+
+- <span class="k">name</span>: <span class="v">Enable site</span>
+  <span class="k">ansible.builtin.file</span>:
+    <span class="k">src</span>: <span class="v">/etc/nginx/sites-available/app.conf</span>
+    <span class="k">dest</span>: <span class="v">/etc/nginx/sites-enabled/app.conf</span>
+    <span class="k">state</span>: <span class="v">link</span>
+  <span class="k">notify</span>: <span class="v">Reload nginx</span>     <span class="c">← still queued only once total</span>
+
+
+<span class="c"># roles/nginx/handlers/main.yml</span>
+<span class="c">---</span>
+- <span class="k">name</span>: <span class="v">Reload nginx</span>         <span class="c">← name MUST match notify string</span>
+  <span class="k">ansible.builtin.service</span>:
+    <span class="k">name</span>: <span class="v">nginx</span>
+    <span class="k">state</span>: <span class="v">reloaded</span>          <span class="c">← reload (no dropped connections)</span>
+  <span class="k">become</span>: <span class="v">true</span>
+
+- <span class="k">name</span>: <span class="v">Restart nginx</span>        <span class="c">← separate handler for hard restart</span>
+  <span class="k">ansible.builtin.service</span>:
+    <span class="k">name</span>: <span class="v">nginx</span>
+    <span class="k">state</span>: <span class="v">restarted</span>
+  <span class="k">become</span>: <span class="v">true</span></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">The rules handlers follow</span><span class="badge bp">behaviour</span></div>
+        <ul class="blist">
+          <li class="note">A handler is defined exactly like a task — same YAML structure, same modules — but lives in <code>handlers/main.yml</code></li>
+          <li class="note">A task notifies a handler by name using <code>notify:</code> — the name must match exactly (case-sensitive)</li>
+          <li class="good">No matter how many tasks notify the same handler, it runs exactly once — Ansible deduplicates the queue</li>
+          <li class="good">Handlers only run if the notifying task reported <code>changed: true</code> — if the config file was already correct, the reload never happens</li>
+          <li class="good">Handlers run after ALL tasks in the current section complete — not inline where <code>notify</code> appears</li>
+          <li class="warn">If a play fails mid-way, handlers that were queued will NOT run — use <code>--force-handlers</code> or <code>force_handlers: true</code> to override</li>
+          <li class="note">Handlers run in the order they are defined in <code>handlers/main.yml</code>, not in the order they were notified</li>
+        </ul>
+        <div class="tip" style="margin-top:10px">Prefer <code>reloaded</code> over <code>restarted</code> for nginx, apache, and similar services — a reload applies config changes without dropping existing connections. Use <code>restarted</code> only when a full process restart is required.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 1: notify vs listen -->
+  <div class="pane" id="p1">
+    <div class="split">
+      <div class="panel">
+        <div class="ph"><span class="pt">notify — target by name</span><span class="badge bt">standard</span></div>
+        <div class="code-area"><span class="c"># Standard: notify by handler name</span>
+- <span class="k">name</span>: <span class="v">Deploy app config</span>
+  <span class="k">ansible.builtin.template</span>:
+    <span class="k">src</span>: <span class="v">app.conf.j2</span>
+    <span class="k">dest</span>: <span class="v">/etc/app/app.conf</span>
+  <span class="k">notify</span>: <span class="v">Restart app</span>
+
+
+<span class="c"># Notify multiple handlers from one task:</span>
+- <span class="k">name</span>: <span class="v">Update TLS certificate</span>
+  <span class="k">ansible.builtin.copy</span>:
+    <span class="k">src</span>: <span class="v">cert.pem</span>
+    <span class="k">dest</span>: <span class="v">/etc/ssl/cert.pem</span>
+  <span class="k">notify</span>:
+    - <span class="v">Reload nginx</span>
+    - <span class="v">Reload haproxy</span>
+    - <span class="v">Send alert to Slack</span>
+
+
+<span class="c"># handlers/main.yml</span>
+- <span class="k">name</span>: <span class="v">Restart app</span>
+  <span class="k">ansible.builtin.systemd</span>:
+    <span class="k">name</span>: <span class="v">myapp</span>
+    <span class="k">state</span>: <span class="v">restarted</span>
+    <span class="k">daemon_reload</span>: <span class="v">true</span>   <span class="c">← reload systemd if unit changed</span>
+
+- <span class="k">name</span>: <span class="v">Reload nginx</span>
+  <span class="k">ansible.builtin.service</span>:
+    <span class="k">name</span>: <span class="v">nginx</span>
+    <span class="k">state</span>: <span class="v">reloaded</span>
+
+- <span class="k">name</span>: <span class="v">Send alert to Slack</span>
+  <span class="k">community.general.slack</span>:
+    <span class="k">token</span>: <span class="v">"{{ slack_token }}"</span>
+    <span class="k">msg</span>: <span class="v">"TLS cert updated on {{ inventory_hostname }}"</span>
+    <span class="k">channel</span>: <span class="v">#ops-alerts</span></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">listen — topic-based notification</span><span class="badge bt">advanced</span></div>
+        <div class="code-area"><span class="c"># listen lets multiple handlers respond to one topic</span>
+
+<span class="c"># tasks/main.yml</span>
+- <span class="k">name</span>: <span class="v">Update nginx main config</span>
+  <span class="k">ansible.builtin.template</span>:
+    <span class="k">src</span>: <span class="v">nginx.conf.j2</span>
+    <span class="k">dest</span>: <span class="v">/etc/nginx/nginx.conf</span>
+  <span class="k">notify</span>: <span class="v">nginx config changed</span>   <span class="c">← notify a topic</span>
+
+- <span class="k">name</span>: <span class="v">Update nginx vhost</span>
+  <span class="k">ansible.builtin.template</span>:
+    <span class="k">src</span>: <span class="v">vhost.conf.j2</span>
+    <span class="k">dest</span>: <span class="v">/etc/nginx/sites-available/app.conf</span>
+  <span class="k">notify</span>: <span class="v">nginx config changed</span>   <span class="c">← same topic</span>
+
+
+<span class="c"># handlers/main.yml</span>
+- <span class="k">name</span>: <span class="v">Validate nginx config</span>
+  <span class="k">ansible.builtin.command</span>:
+    <span class="k">cmd</span>: <span class="v">nginx -t</span>
+  <span class="k">listen</span>: <span class="v">nginx config changed</span>  <span class="c">← subscribes to topic</span>
+  <span class="k">become</span>: <span class="v">true</span>
+
+- <span class="k">name</span>: <span class="v">Reload nginx</span>
+  <span class="k">ansible.builtin.service</span>:
+    <span class="k">name</span>: <span class="v">nginx</span>
+    <span class="k">state</span>: <span class="v">reloaded</span>
+  <span class="k">listen</span>: <span class="v">nginx config changed</span>  <span class="c">← also subscribes</span>
+  <span class="k">become</span>: <span class="v">true</span></div>
+        <ul class="blist">
+          <li class="good"><code>listen</code> decouples tasks from handler names — tasks notify a semantic topic, handlers subscribe independently</li>
+          <li class="good">Multiple handlers can listen to the same topic and all fire — ideal for validate → reload sequences</li>
+          <li class="note">Handlers with <code>listen</code> run in the order they appear in <code>handlers/main.yml</code> — put validate before reload</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 2: Handler timing -->
+  <div class="pane" id="p2">
+    <div class="split">
+      <div class="panel">
+        <div class="ph"><span class="pt">When exactly do handlers run?</span><span class="badge bc">timing</span></div>
+        <div class="code-area"><span class="c"># Handlers flush after each section, not once at end</span>
+
+Play: Configure webservers
+  pre_tasks:        <span class="c">← runs, flushes handlers after</span>
+    task 1 → notify: Reload nginx    (queued)
+    task 2 → notify: Restart app     (queued)
+    <span class="c">↓ pre_tasks handler flush</span>
+    Reload nginx    runs ✓
+    Restart app     runs ✓
+
+  roles:            <span class="c">← runs, flushes handlers after</span>
+    role: nginx
+      task 3 → notify: Reload nginx  (queued)
+      task 4 → no change             (not queued)
+    <span class="c">↓ roles handler flush</span>
+    Reload nginx    runs ✓
+
+  tasks:            <span class="c">← runs, flushes handlers after</span>
+    task 5 → notify: Reload nginx    (queued)
+    task 6 → notify: Reload nginx    (queued, deduped)
+    <span class="c">↓ tasks handler flush</span>
+    Reload nginx    runs ✓ (once, despite 2 notifies)
+
+  post_tasks:       <span class="c">← runs, flushes handlers after</span></div>
+        <ul class="blist">
+          <li class="note">Handlers flush after each section: <code>pre_tasks</code>, <code>roles</code>, <code>tasks</code>, <code>post_tasks</code> — not once at the very end</li>
+          <li class="note">Within each section, handlers run after ALL tasks in that section complete</li>
+          <li class="good">A handler notified in <code>tasks:</code> runs before <code>post_tasks:</code> begin — letting you validate in <code>post_tasks</code> after the restart</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Force handlers and meta flush</span><span class="badge bc">control</span></div>
+        <div class="code-area"><span class="c"># Force handlers to run NOW (mid-play flush):</span>
+- <span class="k">name</span>: <span class="v">Deploy config</span>
+  <span class="k">ansible.builtin.template</span>:
+    <span class="k">src</span>: <span class="v">app.conf.j2</span>
+    <span class="k">dest</span>: <span class="v">/etc/app/app.conf</span>
+  <span class="k">notify</span>: <span class="v">Restart app</span>
+
+<span class="c"># Flush handlers inline — runs Restart app NOW:</span>
+- <span class="k">name</span>: <span class="v">Flush handlers before health check</span>
+  <span class="k">ansible.builtin.meta</span>: <span class="v">flush_handlers</span>
+
+- <span class="k">name</span>: <span class="v">Verify app is healthy after restart</span>
+  <span class="k">ansible.builtin.uri</span>:
+    <span class="k">url</span>: <span class="v">http://localhost:8000/health</span>
+    <span class="k">status_code</span>: <span class="v">200</span>
+  <span class="k">retries</span>: <span class="v">5</span>
+  <span class="k">delay</span>: <span class="v">3</span>
+
+
+<span class="c"># force_handlers — run handlers even if play fails:</span>
+- <span class="k">name</span>: <span class="v">Configure web servers</span>
+  <span class="k">hosts</span>: <span class="v">webservers</span>
+  <span class="k">force_handlers</span>: <span class="v">true</span>    <span class="c">← handlers run even on failure</span>
+  <span class="k">tasks</span>:
+    - <span class="k">name</span>: <span class="v">Deploy config</span>
+      <span class="k">ansible.builtin.template</span>:
+        <span class="k">src</span>: <span class="v">nginx.conf.j2</span>
+        <span class="k">dest</span>: <span class="v">/etc/nginx/nginx.conf</span>
+      <span class="k">notify</span>: <span class="v">Reload nginx</span>
+
+    - <span class="k">name</span>: <span class="v">This task fails</span>
+      <span class="k">ansible.builtin.command</span>: <span class="v">false</span>
+  <span class="c"># Without force_handlers: Reload nginx is skipped</span>
+  <span class="c"># With force_handlers: Reload nginx still runs</span></div>
+        <ul class="blist">
+          <li class="good"><code>meta: flush_handlers</code> is the correct pattern when you need a service restarted before the next task — e.g. restart app, then immediately health-check it</li>
+          <li class="warn"><code>force_handlers: true</code> is useful for cleanup handlers that must run even when the play fails</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 3: Advanced patterns -->
+  <div class="pane" id="p3">
+    <div class="card open">
+      <div class="ch" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge ba">pattern</span><span class="ct">Handler chaining — handlers that notify other handlers</span><span class="ca">▾</span>
+      </div>
+      <div class="cb"><div class="cb-p">
+        <div class="code-area"><span class="c"># handlers/main.yml</span>
+<span class="c"># Handlers can notify other handlers:</span>
+- <span class="k">name</span>: <span class="v">Validate nginx config</span>
+  <span class="k">ansible.builtin.command</span>:
+    <span class="k">cmd</span>: <span class="v">nginx -t</span>
+  <span class="k">notify</span>: <span class="v">Reload nginx</span>    <span class="c">← on success, notify next handler</span>
+  <span class="k">become</span>: <span class="v">true</span>
+
+- <span class="k">name</span>: <span class="v">Reload nginx</span>
+  <span class="k">ansible.builtin.service</span>:
+    <span class="k">name</span>: <span class="v">nginx</span>
+    <span class="k">state</span>: <span class="v">reloaded</span>
+  <span class="k">become</span>: <span class="v">true</span>
+
+<span class="c"># tasks/main.yml notifies only the first handler:</span>
+- <span class="k">name</span>: <span class="v">Deploy nginx config</span>
+  <span class="k">ansible.builtin.template</span>:
+    <span class="k">src</span>: <span class="v">nginx.conf.j2</span>
+    <span class="k">dest</span>: <span class="v">/etc/nginx/nginx.conf</span>
+  <span class="k">notify</span>: <span class="v">Validate nginx config</span>
+
+<span class="c"># Chain: config deploys → validate runs →</span>
+<span class="c">#        if valid, reload runs</span>
+<span class="c"># If validate fails, reload is never triggered</span></div>
+        <ul class="blist">
+          <li class="good">Handler chaining is the safe pattern for config validation — validate first, reload only on success, avoid reloading a broken config</li>
+          <li class="note">Chained handler notifications are queued and run in the next flush cycle, not immediately</li>
+        </ul>
+      </div></div>
+    </div>
+
+    <div class="card open">
+      <div class="ch" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge ba">pattern</span><span class="ct">Handlers in roles vs playbooks</span><span class="ca">▾</span>
+      </div>
+      <div class="cb"><div class="cb-p">
+        <div class="code-area"><span class="c"># Role handlers: roles/nginx/handlers/main.yml</span>
+<span class="c"># Scoped to the role — not visible outside it</span>
+
+<span class="c"># Playbook-level handlers live in the play itself:</span>
+- <span class="k">name</span>: <span class="v">Configure servers</span>
+  <span class="k">hosts</span>: <span class="v">webservers</span>
+  <span class="k">handlers</span>:                   <span class="c">← play-level handlers</span>
+    - <span class="k">name</span>: <span class="v">Restart nginx</span>
+      <span class="k">ansible.builtin.service</span>:
+        <span class="k">name</span>: <span class="v">nginx</span>
+        <span class="k">state</span>: <span class="v">restarted</span>
+      <span class="k">become</span>: <span class="v">true</span>
+
+  <span class="k">tasks</span>:
+    - <span class="k">name</span>: <span class="v">Deploy config</span>
+      <span class="k">ansible.builtin.template</span>:
+        <span class="k">src</span>: <span class="v">nginx.conf.j2</span>
+        <span class="k">dest</span>: <span class="v">/etc/nginx/nginx.conf</span>
+      <span class="k">notify</span>: <span class="v">Restart nginx</span>
+
+<span class="c"># Scope rules:</span>
+<span class="c"># - Role handlers: visible only within that role's tasks</span>
+<span class="c"># - Play handlers: visible to all tasks in the play</span>
+<span class="c"># - Name conflicts: play handler wins over role handler</span></div>
+        <ul class="blist">
+          <li class="note">Put handlers in the role that owns the service — the nginx role owns "Reload nginx", postgresql owns "Restart postgresql"</li>
+          <li class="good">Play-level handlers are useful for cross-cutting actions spanning multiple roles — e.g. "Send deployment notification"</li>
+        </ul>
+      </div></div>
+    </div>
+
+    <div class="card">
+      <div class="ch" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge ba">pattern</span><span class="ct">Handlers with delegate_to and run_once</span><span class="ca">▾</span>
+      </div>
+      <div class="cb"><div class="cb-p">
+        <div class="code-area"><span class="c"># Handlers support all task keywords: when, delegate_to, etc.</span>
+
+- <span class="k">name</span>: <span class="v">Invalidate CDN cache</span>
+  <span class="k">ansible.builtin.uri</span>:
+    <span class="k">url</span>: <span class="v">"https://api.cloudflare.com/client/v4/zones/{{ cf_zone }}/purge_cache"</span>
+    <span class="k">method</span>: <span class="v">POST</span>
+    <span class="k">headers</span>:
+      <span class="k">Authorization</span>: <span class="v">"Bearer {{ cf_token }}"</span>
+    <span class="k">body_format</span>: <span class="v">json</span>
+    <span class="k">body</span>:
+      <span class="k">purge_everything</span>: <span class="v">true</span>
+  <span class="k">delegate_to</span>: <span class="v">localhost</span>    <span class="c">← API call from control node</span>
+  <span class="k">run_once</span>: <span class="v">true</span>            <span class="c">← one API call, not one per host</span>
+
+- <span class="k">name</span>: <span class="v">Restart only on systemd hosts</span>
+  <span class="k">ansible.builtin.service</span>:
+    <span class="k">name</span>: <span class="v">nginx</span>
+    <span class="k">state</span>: <span class="v">restarted</span>
+  <span class="k">when</span>: <span class="v">ansible_service_mgr == "systemd"</span>
+  <span class="k">become</span>: <span class="v">true</span></div>
+        <ul class="blist">
+          <li class="good"><code>delegate_to: localhost</code> + <code>run_once: true</code> in a handler is the pattern for API calls that should happen once after any host changes — CDN invalidation, Slack notifications, webhook triggers</li>
+        </ul>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- PANE 4: Common gotchas -->
+  <div class="pane" id="p4">
+    <div class="split">
+      <div class="panel">
+        <div class="ph"><span class="pt">Common mistakes</span><span class="badge bk">gotchas</span></div>
+        <ul class="blist">
+          <li class="warn">Handler name must match <code>notify</code> string exactly — "reload nginx" and "Reload nginx" are different handlers. Ansible silently ignores a notify with no matching handler</li>
+          <li class="warn">Handlers only run when <code>changed: true</code> — if you force <code>changed_when: true</code> the handler fires every run; if you use <code>changed_when: false</code> the handler never fires</li>
+          <li class="warn">A failed play skips queued handlers — if task 5 fails, handlers queued by tasks 1-4 never run. Use <code>force_handlers: true</code> or <code>meta: flush_handlers</code> before the risky task</li>
+          <li class="warn">Handlers run in definition order, not notification order — if you need validate before reload, define validate first in <code>handlers/main.yml</code></li>
+          <li class="warn">A handler notified across multiple hosts runs once per host — not once globally. Each host tracks its own queue independently</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Debugging handlers</span><span class="badge bk">diagnostics</span></div>
+        <div class="code-area"><span class="c"># See what handlers are queued (verbose output):</span>
+ansible-playbook site.yml -v
+<span class="c"># Look for: "NOTIFIED HANDLER [handler name]"</span>
+<span class="c"># And:      "RUNNING HANDLER [handler name]"</span>
+
+
+<span class="c"># Test if a handler fires with check mode:</span>
+ansible-playbook site.yml --check
+<span class="c"># check mode simulates changes — handlers show</span>
+<span class="c"># as "would have run" if the task would have changed</span>
+
+
+<span class="c"># Force all handlers to run regardless of changes:</span>
+ansible-playbook site.yml --force-handlers
+
+
+<span class="c"># Handler not firing? Check:</span>
+<span class="c"># 1. Does the task actually report changed: true?</span>
+<span class="c">#    ansible-playbook site.yml -v | grep changed</span>
+<span class="c">#</span>
+<span class="c"># 2. Does the notify string match handler name exactly?</span>
+<span class="c">#    grep -r "notify:" roles/ playbooks/</span>
+<span class="c">#    grep -r "name:" roles/*/handlers/</span>
+<span class="c">#</span>
+<span class="c"># 3. Is the handler in the right scope?</span>
+<span class="c">#    (role handler vs play handler)</span></div>
+        <div class="tip" style="margin-top:10px">The most common handler bug: a task uses <code>changed_when: false</code> for a good reason but also has a <code>notify:</code> that will never fire. Every task with both <code>changed_when: false</code> and <code>notify:</code> is always a bug — pick one.</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Generated from the Ansible expert roadmap · Chapter 3: Playbooks &amp; Tasks</footer>
+</div>
+
+<script>
+function sw(i, btn) {
+  document.querySelectorAll('.ttab').forEach((t,j) => t.classList.toggle('active', i===j));
+  document.querySelectorAll('.pane').forEach((p,j) => p.classList.toggle('visible', i===j));
+}
+</script>
+</body>
+</html>
