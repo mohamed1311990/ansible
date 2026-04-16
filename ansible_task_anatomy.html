@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ansible Task Anatomy — name, module, args, register, when, loop</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f5f0;
+    color: #1a1a18;
+    padding: 2rem 1rem;
+    line-height: 1.6;
+  }
+  .page { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: #6b6b65; margin-bottom: 1.75rem; }
+
+  .top-tabs { display: flex; gap: 0; border-bottom: 0.5px solid #ddddd5; margin-bottom: 1.25rem; overflow-x: auto; }
+  .ttab {
+    padding: 9px 16px; font-size: 13px; font-weight: 500; cursor: pointer;
+    color: #6b6b65; border-bottom: 2px solid transparent; white-space: nowrap;
+    transition: all .15s; user-select: none; margin-bottom: -0.5px;
+    background: none; border-top: none; border-left: none; border-right: none;
+    font-family: inherit;
+  }
+  .ttab.active { color: #534AB7; border-bottom-color: #534AB7; }
+  .ttab:hover:not(.active) { color: #3a3a38; }
+
+  .pane { display: none; }
+  .pane.visible { display: block; }
+
+  .split { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; margin-bottom: 12px; }
+  .panel { border: 0.5px solid #ddddd5; border-radius: 12px; overflow: hidden; background: #fff; }
+
+  .ph { padding: 10px 14px; border-bottom: 0.5px solid #ddddd5; display: flex; align-items: center; gap: 8px; }
+  .pt { font-size: 13px; font-weight: 500; color: #1a1a18; flex: 1; }
+
+  .badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+  .bp { background: #EEEDFE; color: #3C3489; }
+  .bt { background: #E1F5EE; color: #085041; }
+  .bc { background: #FAECE7; color: #712B13; }
+  .ba { background: #FAEEDA; color: #633806; }
+  .bk { background: #F1EFE8; color: #5F5E5A; }
+
+  .code-area {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px; line-height: 1.9; color: #1a1a18;
+    background: #f5f5f0; padding: 12px 14px;
+    white-space: pre; overflow-x: auto;
+  }
+  .c  { color: #9a9a92; font-style: italic; }
+  .k  { color: #3C3489; font-weight: 500; }
+  .v  { color: #0F6E56; }
+  .kw { color: #993C1D; font-weight: 600; }
+  .h  { color: #185FA5; font-weight: 600; }
+
+  .blist { list-style: none; display: flex; flex-direction: column; gap: 6px; padding: 11px 14px; }
+  .blist li { display: flex; gap: 9px; align-items: flex-start; font-size: 13px; color: #1a1a18; line-height: 1.6; }
+  .blist li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; margin-top: 7px; background: #aaa; }
+  .blist li.good::before { background: #1D9E75; }
+  .blist li.warn::before { background: #E24B4A; }
+  .blist li.note::before { background: #534AB7; }
+  .blist code {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+    background: #f0f0ea; padding: 1px 5px; border-radius: 4px; color: #1a1a18;
+  }
+
+  .tip {
+    font-size: 12px; color: #555550; padding: 7px 11px;
+    border-left: 2px solid #1D9E75; border-radius: 0 6px 6px 0;
+    background: #f0f0ea; line-height: 1.55; margin: 0 14px 12px;
+  }
+  .tip.warn { border-left-color: #E24B4A; }
+
+  .card { border: 0.5px solid #ddddd5; border-radius: 12px; overflow: hidden; background: #fff; margin-bottom: 10px; }
+  .ch {
+    padding: 11px 15px; border-bottom: 0.5px solid #ddddd5;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; user-select: none; transition: background .15s;
+  }
+  .ch:hover { background: #f5f5f0; }
+  .ct { font-size: 13px; font-weight: 500; color: #1a1a18; flex: 1; }
+  .ca { font-size: 12px; color: #aaa; transition: transform .2s; }
+  .card.open .ca { transform: rotate(180deg); }
+  .cb { display: none; }
+  .card.open .cb { display: block; }
+  .cb-p { padding: 12px 14px; }
+
+  footer { margin-top: 2.5rem; font-size: 12px; color: #aaa; text-align: center; }
+
+  @media (max-width: 600px) {
+    .split { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Ansible task anatomy</h1>
+  <p class="subtitle">name, module, args, register, when, loop — every keyword dissected with annotated examples and real-world patterns.</p>
+
+  <div class="top-tabs">
+    <button class="ttab active" onclick="sw(0,this)">Full task anatomy</button>
+    <button class="ttab" onclick="sw(1,this)">register</button>
+    <button class="ttab" onclick="sw(2,this)">when</button>
+    <button class="ttab" onclick="sw(3,this)">loop</button>
+    <button class="ttab" onclick="sw(4,this)">Real patterns</button>
+  </div>
+
+  <!-- PANE 0: Full anatomy -->
+  <div class="pane visible" id="p0">
+    <div class="split">
+      <div class="panel">
+        <div class="ph"><span class="pt">Every keyword a task can have</span><span class="badge bp">annotated</span></div>
+        <div class="code-area"><span class="c">---</span>
+- <span class="k">name</span>: <span class="v">Deploy application config</span>   <span class="c">← required in practice</span>
+
+  <span class="k">ansible.builtin.template</span>:         <span class="c">← FQCN module name</span>
+    <span class="k">src</span>: <span class="v">app.conf.j2</span>                 <span class="c">← module arguments</span>
+    <span class="k">dest</span>: <span class="v">/etc/app/app.conf</span>
+    <span class="k">owner</span>: <span class="v">appuser</span>
+    <span class="k">mode</span>: <span class="v">"0644"</span>
+
+  <span class="k">become</span>: <span class="v">true</span>                      <span class="c">← override play-level</span>
+  <span class="k">become_user</span>: <span class="v">root</span>
+
+  <span class="k">when</span>: <span class="v">ansible_os_family == "Debian"</span> <span class="c">← conditional</span>
+
+  <span class="k">loop</span>:                              <span class="c">← iterate over list</span>
+    - <span class="v">app1</span>
+    - <span class="v">app2</span>
+
+  <span class="k">register</span>: <span class="v">config_result</span>           <span class="c">← capture output</span>
+
+  <span class="k">notify</span>: <span class="v">Restart app</span>              <span class="c">← trigger handler</span>
+
+  <span class="k">tags</span>: <span class="v">[config, deploy]</span>           <span class="c">← for --tags filtering</span>
+
+  <span class="k">ignore_errors</span>: <span class="v">false</span>             <span class="c">← fail on error (default)</span>
+  <span class="k">failed_when</span>: <span class="v">config_result.rc != 0</span>
+  <span class="k">changed_when</span>: <span class="v">config_result.stdout != ""</span>
+
+  <span class="k">no_log</span>: <span class="v">false</span>                    <span class="c">← set true for secrets</span>
+  <span class="k">timeout</span>: <span class="v">30</span>                      <span class="c">← seconds before abort</span>
+  <span class="k">retries</span>: <span class="v">3</span>                       <span class="c">← retry on failure</span>
+  <span class="k">delay</span>: <span class="v">5</span>                         <span class="c">← seconds between retries</span>
+  <span class="k">until</span>: <span class="v">config_result.rc == 0</span>    <span class="c">← retry condition</span>
+
+  <span class="k">delegate_to</span>: <span class="v">localhost</span>          <span class="c">← run on a different host</span>
+  <span class="k">run_once</span>: <span class="v">true</span>                  <span class="c">← run on one host only</span></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">The minimum viable task</span><span class="badge bp">essentials only</span></div>
+        <div class="code-area"><span class="c"># Absolute minimum — just a name and module:</span>
+- <span class="k">name</span>: <span class="v">Install nginx</span>
+  <span class="k">ansible.builtin.package</span>:
+    <span class="k">name</span>: <span class="v">nginx</span>
+    <span class="k">state</span>: <span class="v">present</span>
+
+
+<span class="c"># Most common real-world task shape:</span>
+- <span class="k">name</span>: <span class="v">Deploy nginx config</span>
+  <span class="k">ansible.builtin.template</span>:
+    <span class="k">src</span>: <span class="v">nginx.conf.j2</span>
+    <span class="k">dest</span>: <span class="v">/etc/nginx/nginx.conf</span>
+    <span class="k">owner</span>: <span class="v">root</span>
+    <span class="k">group</span>: <span class="v">root</span>
+    <span class="k">mode</span>: <span class="v">"0644"</span>
+  <span class="k">become</span>: <span class="v">true</span>
+  <span class="k">notify</span>: <span class="v">Reload nginx</span>
+
+
+<span class="c"># FQCN — fully qualified collection name</span>
+<span class="c"># Always use it — avoids ambiguity:</span>
+<span class="k">ansible.builtin.copy</span>:    <span class="c">← collection.namespace.module</span>
+<span class="k">community.general.ufw</span>:
+<span class="k">amazon.aws.ec2_instance</span>:
+<span class="k">kubernetes.core.k8s</span>:</div>
+        <ul class="blist">
+          <li class="note"><code>name:</code> — always write a descriptive sentence, not a label. "Install nginx" is good. "nginx" is not</li>
+          <li class="note">Module name goes at the same indent level as <code>name:</code> — it IS the task type</li>
+          <li class="good">Always use FQCN — makes the collection source explicit and avoids name conflicts between collections</li>
+          <li class="warn">A task with no <code>name:</code> shows the module and args in output — ugly and hard to read in CI logs</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 1: register -->
+  <div class="pane" id="p1">
+    <div class="split">
+      <div class="panel">
+        <div class="ph"><span class="pt">register — capturing task output</span><span class="badge bt">register</span></div>
+        <div class="code-area"><span class="c"># register stores the module's return value</span>
+- <span class="k">name</span>: <span class="v">Get service status</span>
+  <span class="k">ansible.builtin.command</span>:
+    <span class="k">cmd</span>: <span class="v">systemctl is-active nginx</span>
+  <span class="k">register</span>: <span class="v">nginx_status</span>
+  <span class="k">ignore_errors</span>: <span class="v">true</span>   <span class="c">← don't fail if not active</span>
+
+<span class="c"># Use the registered var in the next task:</span>
+- <span class="k">name</span>: <span class="v">Start nginx if not running</span>
+  <span class="k">ansible.builtin.service</span>:
+    <span class="k">name</span>: <span class="v">nginx</span>
+    <span class="k">state</span>: <span class="v">started</span>
+  <span class="k">when</span>: <span class="v">nginx_status.rc != 0</span>
+
+
+<span class="c"># register with shell — capture stdout:</span>
+- <span class="k">name</span>: <span class="v">Get current app version</span>
+  <span class="k">ansible.builtin.shell</span>:
+    <span class="k">cmd</span>: <span class="v">cat /etc/app/VERSION</span>
+  <span class="k">register</span>: <span class="v">app_version</span>
+  <span class="k">changed_when</span>: <span class="v">false</span>    <span class="c">← reading is never a change</span>
+
+- <span class="k">name</span>: <span class="v">Print current version</span>
+  <span class="k">ansible.builtin.debug</span>:
+    <span class="k">msg</span>: <span class="v">"Running version: {{ app_version.stdout }}"</span></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">What a registered variable contains</span><span class="badge bt">return values</span></div>
+        <div class="code-area"><span class="c"># Every registered var has these standard keys:</span>
+nginx_status:
+  <span class="k">changed</span>: <span class="v">false</span>        <span class="c">← did the task change anything?</span>
+  <span class="k">failed</span>: <span class="v">false</span>         <span class="c">← did the task fail?</span>
+  <span class="k">rc</span>: <span class="v">0</span>                 <span class="c">← return code (command/shell)</span>
+  <span class="k">stdout</span>: <span class="v">"active"</span>      <span class="c">← standard output</span>
+  <span class="k">stderr</span>: <span class="v">""</span>            <span class="c">← standard error</span>
+  <span class="k">stdout_lines</span>: [<span class="v">"active"</span>] <span class="c">← stdout split by newline</span>
+
+<span class="c"># Module-specific keys (e.g. stat module):</span>
+file_stat:
+  <span class="k">stat</span>:
+    <span class="k">exists</span>: <span class="v">true</span>
+    <span class="k">size</span>: <span class="v">1024</span>
+    <span class="k">mode</span>: <span class="v">"0644"</span>
+    <span class="k">isdir</span>: <span class="v">false</span>
+
+<span class="c"># Common access patterns:</span>
+<span class="v">"{{ nginx_status.rc }}"</span>            <span class="c">← return code</span>
+<span class="v">"{{ nginx_status.stdout }}"</span>        <span class="c">← full output</span>
+<span class="v">"{{ nginx_status.stdout_lines }}"</span>  <span class="c">← as list</span>
+<span class="v">"{{ nginx_status.failed }}"</span>        <span class="c">← boolean</span>
+<span class="v">"{{ nginx_status.changed }}"</span>       <span class="c">← boolean</span>
+
+<span class="c"># Safe default if key might not exist:</span>
+<span class="v">"{{ nginx_status.stdout | default('') }}"</span></div>
+        <ul class="blist">
+          <li class="good">Use <code>debug: var: my_result</code> to dump the full structure of any registered variable during development</li>
+          <li class="warn">Registered variables only exist for the current play — they don't persist to the next play</li>
+          <li class="note">With <code>loop:</code>, the registered var gets a <code>results</code> key — a list of return values, one per iteration</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 2: when -->
+  <div class="pane" id="p2">
+    <div class="split">
+      <div class="panel">
+        <div class="ph"><span class="pt">when — conditionals</span><span class="badge bc">when</span></div>
+        <div class="code-area"><span class="c"># when uses Jinja2 expressions (no {{ }} needed)</span>
+
+<span class="c"># OS family check — most common pattern:</span>
+- <span class="k">name</span>: <span class="v">Install on Debian systems</span>
+  <span class="k">ansible.builtin.apt</span>:
+    <span class="k">name</span>: <span class="v">nginx</span>
+  <span class="k">when</span>: <span class="v">ansible_os_family == "Debian"</span>
+
+- <span class="k">name</span>: <span class="v">Install on RedHat systems</span>
+  <span class="k">ansible.builtin.dnf</span>:
+    <span class="k">name</span>: <span class="v">nginx</span>
+  <span class="k">when</span>: <span class="v">ansible_os_family == "RedHat"</span>
+
+
+<span class="c"># Multiple conditions — AND (list syntax):</span>
+- <span class="k">name</span>: <span class="v">Run only on prod Ubuntu 22</span>
+  <span class="k">ansible.builtin.debug</span>:
+    <span class="k">msg</span>: <span class="v">production ubuntu 22</span>
+  <span class="k">when</span>:
+    - <span class="v">env == "production"</span>
+    - <span class="v">ansible_distribution == "Ubuntu"</span>
+    - <span class="v">ansible_distribution_version == "22.04"</span>
+
+
+<span class="c"># OR condition:</span>
+- <span class="k">name</span>: <span class="v">Run on Ubuntu or Debian</span>
+  <span class="k">when</span>: >
+    ansible_distribution == "Ubuntu" or
+    ansible_distribution == "Debian"
+
+
+<span class="c"># Based on registered result:</span>
+- <span class="k">name</span>: <span class="v">Reload if config changed</span>
+  <span class="k">ansible.builtin.service</span>:
+    <span class="k">name</span>: <span class="v">nginx</span>
+    <span class="k">state</span>: <span class="v">reloaded</span>
+  <span class="k">when</span>: <span class="v">config_result.changed</span>
+
+
+<span class="c"># Variable existence check:</span>
+- <span class="k">name</span>: <span class="v">Run only if var is defined</span>
+  <span class="k">when</span>: <span class="v">my_var is defined</span>
+
+- <span class="k">name</span>: <span class="v">Run only if var is not empty</span>
+  <span class="k">when</span>: <span class="v">my_var is defined and my_var | length > 0</span></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">failed_when and changed_when</span><span class="badge bc">outcome control</span></div>
+        <div class="code-area"><span class="c"># changed_when — override Ansible's change detection</span>
+- <span class="k">name</span>: <span class="v">Check if migration is needed</span>
+  <span class="k">ansible.builtin.command</span>:
+    <span class="k">cmd</span>: <span class="v">python manage.py showmigrations</span>
+  <span class="k">register</span>: <span class="v">migration_status</span>
+  <span class="k">changed_when</span>: <span class="v">false</span>   <span class="c">← reading never changes anything</span>
+
+- <span class="k">name</span>: <span class="v">Run migrations</span>
+  <span class="k">ansible.builtin.command</span>:
+    <span class="k">cmd</span>: <span class="v">python manage.py migrate</span>
+  <span class="k">register</span>: <span class="v">migrate_result</span>
+  <span class="k">changed_when</span>: <span class="v">"'No migrations to apply' not in migrate_result.stdout"</span>
+
+
+<span class="c"># failed_when — custom failure condition:</span>
+- <span class="k">name</span>: <span class="v">Run test suite</span>
+  <span class="k">ansible.builtin.shell</span>:
+    <span class="k">cmd</span>: <span class="v">pytest tests/ --tb=short</span>
+  <span class="k">register</span>: <span class="v">test_result</span>
+  <span class="k">failed_when</span>:
+    - <span class="v">test_result.rc != 0</span>
+    - <span class="v">"'passed' not in test_result.stdout"</span>
+
+
+<span class="c"># until / retries / delay — retry pattern:</span>
+- <span class="k">name</span>: <span class="v">Wait for app to be healthy</span>
+  <span class="k">ansible.builtin.uri</span>:
+    <span class="k">url</span>: <span class="v">http://localhost:8000/health</span>
+    <span class="k">status_code</span>: <span class="v">200</span>
+  <span class="k">register</span>: <span class="v">health_check</span>
+  <span class="k">until</span>: <span class="v">health_check.status == 200</span>
+  <span class="k">retries</span>: <span class="v">12</span>
+  <span class="k">delay</span>: <span class="v">5</span>               <span class="c">← up to 60s total wait</span></div>
+        <ul class="blist">
+          <li class="good"><code>changed_when: false</code> is essential for read-only <code>command</code>/<code>shell</code> tasks — without it Ansible always reports a change</li>
+          <li class="good"><code>until</code> + <code>retries</code> + <code>delay</code> is the standard pattern for waiting on async processes — app startup, DNS propagation, cert issuance</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE 3: loop -->
+  <div class="pane" id="p3">
+    <div class="card open">
+      <div class="ch" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge ba">loop</span><span class="ct">Basic loop — iterate over a list</span><span class="ca">▾</span>
+      </div>
+      <div class="cb"><div class="cb-p">
+        <div class="code-area"><span class="c"># loop: replaces the deprecated with_items:</span>
+- <span class="k">name</span>: <span class="v">Install required packages</span>
+  <span class="k">ansible.builtin.package</span>:
+    <span class="k">name</span>: <span class="v">"{{ item }}"</span>      <span class="c">← item = current iteration</span>
+    <span class="k">state</span>: <span class="v">present</span>
+  <span class="k">loop</span>:
+    - <span class="v">nginx</span>
+    - <span class="v">git</span>
+    - <span class="v">curl</span>
+    - <span class="v">htop</span>
+
+<span class="c"># Loop over a variable (list from inventory/vars):</span>
+- <span class="k">name</span>: <span class="v">Create application directories</span>
+  <span class="k">ansible.builtin.file</span>:
+    <span class="k">path</span>: <span class="v">"{{ item }}"</span>
+    <span class="k">state</span>: <span class="v">directory</span>
+    <span class="k">mode</span>: <span class="v">"0755"</span>
+  <span class="k">loop</span>: <span class="v">"{{ app_directories }}"</span>   <span class="c">← defined in vars</span>
+  <span class="k">become</span>: <span class="v">true</span></div>
+        <ul class="blist">
+          <li class="note">The current iteration value is always available as <code>item</code> inside the task</li>
+          <li class="warn">Avoid using <code>loop:</code> with the <code>package</code> module for large lists — pass the list directly to <code>name:</code> instead (one module call vs N calls)</li>
+        </ul>
+      </div></div>
+    </div>
+
+    <div class="card open">
+      <div class="ch" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge ba">loop</span><span class="ct">Loop over dicts — multiple values per iteration</span><span class="ca">▾</span>
+      </div>
+      <div class="cb"><div class="cb-p">
+        <div class="code-area"><span class="c"># Loop over a list of dicts:</span>
+- <span class="k">name</span>: <span class="v">Create system users</span>
+  <span class="k">ansible.builtin.user</span>:
+    <span class="k">name</span>: <span class="v">"{{ item.name }}"</span>
+    <span class="k">groups</span>: <span class="v">"{{ item.groups }}"</span>
+    <span class="k">shell</span>: <span class="v">"{{ item.shell | default('/bin/bash') }}"</span>
+    <span class="k">state</span>: <span class="v">present</span>
+  <span class="k">loop</span>:
+    - <span class="k">name</span>: <span class="v">appuser</span>
+      <span class="k">groups</span>: <span class="v">docker</span>
+      <span class="k">shell</span>: <span class="v">/bin/bash</span>
+    - <span class="k">name</span>: <span class="v">deployer</span>
+      <span class="k">groups</span>: <span class="v">sudo,docker</span>
+    - <span class="k">name</span>: <span class="v">monitor</span>
+      <span class="k">groups</span>: <span class="v">adm</span>
+      <span class="k">shell</span>: <span class="v">/bin/false</span>
+  <span class="k">become</span>: <span class="v">true</span>
+
+<span class="c"># loop_control — customise loop behaviour:</span>
+- <span class="k">name</span>: <span class="v">Deploy vhost configs</span>
+  <span class="k">ansible.builtin.template</span>:
+    <span class="k">src</span>: <span class="v">vhost.conf.j2</span>
+    <span class="k">dest</span>: <span class="v">"/etc/nginx/sites-available/{{ item.name }}.conf"</span>
+  <span class="k">loop</span>: <span class="v">"{{ nginx_vhosts }}"</span>
+  <span class="k">loop_control</span>:
+    <span class="k">label</span>: <span class="v">"{{ item.name }}"</span>  <span class="c">← cleaner output (not full dict)</span>
+    <span class="k">loop_var</span>: <span class="v">vhost</span>           <span class="c">← rename item → vhost</span>
+    <span class="k">pause</span>: <span class="v">1</span>                  <span class="c">← seconds between iterations</span></div>
+        <ul class="blist">
+          <li class="good"><code>loop_control.label</code> is essential when looping over dicts — without it, the full dict prints for every iteration</li>
+          <li class="good"><code>loop_control.loop_var</code> renames <code>item</code> to something meaningful — critical when nesting loops in included tasks</li>
+        </ul>
+      </div></div>
+    </div>
+
+    <div class="card">
+      <div class="ch" onclick="this.parentElement.classList.toggle('open')">
+        <span class="badge ba">loop</span><span class="ct">loop with register — capturing results per iteration</span><span class="ca">▾</span>
+      </div>
+      <div class="cb"><div class="cb-p">
+        <div class="code-area"><span class="c"># When using loop + register, results is a list:</span>
+- <span class="k">name</span>: <span class="v">Check each service</span>
+  <span class="k">ansible.builtin.command</span>:
+    <span class="k">cmd</span>: <span class="v">"systemctl is-active {{ item }}"</span>
+  <span class="k">loop</span>: [<span class="v">nginx</span>, <span class="v">postgresql</span>, <span class="v">redis</span>]
+  <span class="k">register</span>: <span class="v">service_checks</span>
+  <span class="k">ignore_errors</span>: <span class="v">true</span>
+  <span class="k">changed_when</span>: <span class="v">false</span>
+
+<span class="c"># service_checks.results is a list, one item per loop:</span>
+- <span class="k">name</span>: <span class="v">Show failed services</span>
+  <span class="k">ansible.builtin.debug</span>:
+    <span class="k">msg</span>: <span class="v">"{{ item.item }} is NOT running"</span>
+  <span class="k">loop</span>: <span class="v">"{{ service_checks.results }}"</span>
+  <span class="k">when</span>: <span class="v">item.rc != 0</span>
+  <span class="k">loop_control</span>:
+    <span class="k">label</span>: <span class="v">"{{ item.item }}"</span>   <span class="c">← item.item = original loop value</span></div>
+        <ul class="blist">
+          <li class="note">With <code>loop</code> + <code>register</code>, the registered var has a <code>results</code> key — a list of return dicts, one per iteration</li>
+          <li class="note">Each entry in <code>results</code> has an extra <code>item</code> key containing the original loop value — use <code>item.item</code> to access it</li>
+        </ul>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- PANE 4: Real patterns -->
+  <div class="pane" id="p4">
+    <div class="split">
+      <div class="panel">
+        <div class="ph"><span class="pt">ExamSim deployment task patterns</span><span class="badge bk">real examples</span></div>
+        <div class="code-area"><span class="c"># Pull Docker images for all services:</span>
+- <span class="k">name</span>: <span class="v">Pull application images</span>
+  <span class="k">community.docker.docker_image</span>:
+    <span class="k">name</span>: <span class="v">"{{ docker_registry }}/{{ item.name }}:{{ item.tag }}"</span>
+    <span class="k">source</span>: <span class="v">pull</span>
+  <span class="k">loop</span>: <span class="v">"{{ app_services }}"</span>
+  <span class="k">loop_control</span>:
+    <span class="k">label</span>: <span class="v">"{{ item.name }}:{{ item.tag }}"</span>
+
+
+<span class="c"># Conditional task based on OS:</span>
+- <span class="k">name</span>: <span class="v">Install Docker (Ubuntu)</span>
+  <span class="k">ansible.builtin.apt</span>:
+    <span class="k">name</span>: <span class="v">docker.io</span>
+    <span class="k">state</span>: <span class="v">present</span>
+  <span class="k">when</span>: <span class="v">ansible_distribution == "Ubuntu"</span>
+  <span class="k">become</span>: <span class="v">true</span>
+
+
+<span class="c"># Wait for FastAPI to be healthy after deploy:</span>
+- <span class="k">name</span>: <span class="v">Wait for API health check</span>
+  <span class="k">ansible.builtin.uri</span>:
+    <span class="k">url</span>: <span class="v">"https://{{ app_domain }}/api/health"</span>
+    <span class="k">status_code</span>: <span class="v">200</span>
+    <span class="k">validate_certs</span>: <span class="v">true</span>
+  <span class="k">register</span>: <span class="v">api_health</span>
+  <span class="k">until</span>: <span class="v">api_health.status == 200</span>
+  <span class="k">retries</span>: <span class="v">18</span>
+  <span class="k">delay</span>: <span class="v">10</span>              <span class="c">← up to 3 minutes</span>
+
+
+<span class="c"># Capture and use current container ID:</span>
+- <span class="k">name</span>: <span class="v">Get running container ID</span>
+  <span class="k">ansible.builtin.command</span>:
+    <span class="k">cmd</span>: <span class="v">docker ps -q --filter name=examsim-api</span>
+  <span class="k">register</span>: <span class="v">container_id</span>
+  <span class="k">changed_when</span>: <span class="v">false</span>
+
+- <span class="k">name</span>: <span class="v">Run DB migrations in container</span>
+  <span class="k">ansible.builtin.command</span>:
+    <span class="k">cmd</span>: <span class="v">"docker exec {{ container_id.stdout }} python manage.py migrate"</span>
+  <span class="k">when</span>: <span class="v">container_id.stdout | length > 0</span></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Common mistakes and fixes</span><span class="badge bk">gotchas</span></div>
+        <ul class="blist">
+          <li class="warn"><code>command</code> and <code>shell</code> always report <code>changed: true</code> — always add <code>changed_when: false</code> for read-only commands</li>
+          <li class="warn"><code>when:</code> uses Jinja2 expressions WITHOUT <code>{{ }}</code> — writing <code>when: "{{ my_var == 'yes' }}"</code> is deprecated; write <code>when: my_var == 'yes'</code></li>
+          <li class="warn">Looping with <code>package</code> one item per iteration is slow — pass a list directly: <code>name: [nginx, git, curl]</code></li>
+          <li class="warn">Registered variables from a loop have a <code>results</code> key — not a direct return value. Access <code>my_result.results[0].stdout</code>, not <code>my_result.stdout</code></li>
+          <li class="good">Use <code>ansible.builtin.debug: var: my_result</code> to dump any registered variable and see its full structure</li>
+          <li class="good">Use <code>no_log: true</code> on any task that handles passwords, API keys, or tokens</li>
+          <li class="good"><code>ignore_errors: true</code> continues on failure and tracks it. <code>failed_when: false</code> marks the task as always succeeded. They are different — use the right one for your situation</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <footer>Generated from the Ansible expert roadmap · Chapter 3: Playbooks &amp; Tasks</footer>
+</div>
+
+<script>
+function sw(i, btn) {
+  document.querySelectorAll('.ttab').forEach((t,j) => t.classList.toggle('active', i===j));
+  document.querySelectorAll('.pane').forEach((p,j) => p.classList.toggle('visible', i===j));
+}
+</script>
+</body>
+</html>
